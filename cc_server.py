@@ -216,6 +216,39 @@ def scan_files():
     recent.sort(key=lambda e: e["mtime"], reverse=True)
     return files, recent
 
+# ---- security: serve-path guards (repo is PUBLIC — never leak secrets) ----
+# Same blocklist as scan_files() above: any path component carrying one of
+# these names is refused on /open, /asset and /read BEFORE anything is served.
+SECRET_NAME_MARKERS = (".env", "payfast", "auth", "secret", "token",
+                       "credential", "password", "google_tts")
+
+def _secret_blocked(p):
+    """True if any path component looks secret-ish (case-insensitive)."""
+    low = (p or "").replace("\\", "/").lower()
+    return any(m in part for part in low.split("/") for m in SECRET_NAME_MARKERS)
+
+def _safe_resolve(p, allowed):
+    """Resolve p to its realpath iff it stays inside one of `allowed` roots.
+    Rejects empty paths, '..' components, absolute escapes and symlink
+    escapes (fail closed: any error -> None)."""
+    if not p:
+        return None
+    if any(part == ".." for part in p.replace("\\", "/").split("/")):
+        return None
+    try:
+        ap = os.path.realpath(os.path.abspath(p))
+    except Exception:
+        return None
+    nap = os.path.normcase(ap)
+    for d in allowed:
+        try:
+            nrd = os.path.normcase(os.path.realpath(d))
+        except Exception:
+            continue
+        if nap == nrd or nap.startswith(nrd + os.sep):
+            return ap
+    return None
+
 # ---- cron (real Hermes jobs, snapshot from `cronjob list` 2026-08-16) ----
 CRON_JOBS = [
     {"name": "Multica board watcher",        "schedule": "every 60m",  "on": True},
@@ -642,13 +675,13 @@ def build_directives():
 
 def read_preview(path):
     """Bounded text preview for the right panel (auth-gated; vault/scan dirs only)."""
-    ap = os.path.abspath(path) if path else ""
     allowed = SCAN_DIRS + [ROOT, VAULT]
     if HERMES_PROFILES:
         allowed += [HERMES_PROFILES]
     if HERMES_SHARED_SKILLS:
         allowed += [HERMES_SHARED_SKILLS]
-    if not any(ap.startswith(d) for d in allowed) or not os.path.isfile(ap):
+    ap = _safe_resolve(path, allowed)
+    if ap is None or _secret_blocked(ap) or not os.path.isfile(ap):
         return None
     if os.path.splitext(ap)[1].lower() not in TEXT_EXTS:
         return {"path": ap, "text": "", "binary": True}
@@ -1202,10 +1235,15 @@ class Handler(BaseHTTPRequestHandler):
                 allowed += [HERMES_PROFILES]
             if HERMES_SHARED_SKILLS:
                 allowed += [HERMES_SHARED_SKILLS]
-            ap = os.path.abspath(p) if p else ""
-            ok = any(ap.startswith(d) for d in allowed if p)
-            if not ok or not os.path.isfile(ap):
+            if _secret_blocked(p):
+                self._json(403, {"error": "blocked filename", "path": p}); return
+            ap = _safe_resolve(p, allowed)
+            if ap is None:
                 self._json(400, {"error": "path not allowed", "path": p}); return
+            if _secret_blocked(ap):
+                self._json(403, {"error": "blocked filename", "path": p}); return
+            if not os.path.isfile(ap):
+                self._json(404, {"error": "not found", "path": p}); return
             ext = os.path.splitext(ap)[1].lower()
             ctype = "application/octet-stream"
             if ext in (".html", ".htm"): ctype = "text/html; charset=utf-8"
@@ -1244,10 +1282,15 @@ class Handler(BaseHTTPRequestHandler):
             allowed += [HERMES_PROFILES]
         if HERMES_SHARED_SKILLS:
             allowed += [HERMES_SHARED_SKILLS]
-        ap = os.path.abspath(p) if p else ""
-        ok = any(ap.startswith(d) for d in allowed if p)
-        if not ok or not os.path.isfile(ap):
+        if _secret_blocked(p):
+            self._json(403, {"error": "blocked filename", "path": p}); return
+        ap = _safe_resolve(p, allowed)
+        if ap is None:
             self._json(400, {"error": "path not allowed", "path": p}); return
+        if _secret_blocked(ap):
+            self._json(403, {"error": "blocked filename", "path": p}); return
+        if not os.path.isfile(ap):
+            self._json(404, {"error": "not found", "path": p}); return
         if IS_WINDOWS:
             try:
                 os.startfile(ap)  # noqa — intentional local open (Vincent's rule)
