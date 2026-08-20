@@ -1636,8 +1636,10 @@ function drawFloor(){
   ctx.strokeStyle = 'rgba(217,185,120,.14)';
   for(let i=0;i<18;i++){
     const a = i/18*Math.PI*2;
-    const p0 = project(Math.cos(a)*24, fy, Math.sin(a)*24);
-    const p1 = project(Math.cos(a)*R, fy, Math.sin(a)*R);
+    const q0 = rotate3(Math.cos(a)*24, fy, Math.sin(a)*24, rotX, rotY);
+    const q1 = rotate3(Math.cos(a)*R, fy, Math.sin(a)*R, rotX, rotY);
+    const p0 = project(q0.x,q0.y,q0.z);
+    const p1 = project(q1.x,q1.y,q1.z);
     if(p0.y < horizonY && p1.y < horizonY) continue;   // fully in the sky: skip
     ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
   }
@@ -1649,7 +1651,8 @@ function drawFloor(){
     let drawn = 0;
     for(let j=0;j<=48;j++){
       const a = j/48*Math.PI*2;
-      const p = project(Math.cos(a)*r, fy, Math.sin(a)*r);
+      const q = rotate3(Math.cos(a)*r, fy, Math.sin(a)*r, rotX, rotY);
+      const p = project(q.x,q.y,q.z);
       if(p.y < horizonY){ if(drawn){ ctx.stroke(); drawn = 0; } ctx.beginPath(); continue; }
       if(drawn===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
       drawn++;
@@ -1657,7 +1660,8 @@ function drawFloor(){
     if(drawn) ctx.stroke();
   }
   // glow pool at the floor centre
-  const pc = project(0, fy, 0);
+  const qc = rotate3(0, fy, 0, rotX, rotY);
+  const pc = project(qc.x,qc.y,qc.z);
   const g = ctx.createRadialGradient(pc.x,pc.y,0, pc.x,pc.y,110);
   g.addColorStop(0,'rgba(217,185,120,.12)'); g.addColorStop(1,'rgba(217,185,120,0)');
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(pc.x,pc.y,110,0,Math.PI*2); ctx.fill();
