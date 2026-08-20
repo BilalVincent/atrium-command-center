@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Command Center Review — Memory Orbit Gap + Abacus Roadmap</title>
+<style>
+  :root{--ink:#2A2620;--gold:#B08D57;--gold-strong:#CDA526;--cream:#F6F3ED;--paper:#FFFDF8;--slate:#3D3830;--line:#E4DCC8;}
+  *{box-sizing:border-box}
+  body{font-family:'Montserrat',system-ui,-apple-system,sans-serif;color:var(--slate);background:var(--cream);margin:0;line-height:1.55;}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 24px 48px;}
+  header{background:var(--ink);color:#fff;padding:26px 30px;border-radius:12px;margin-bottom:20px;border-bottom:4px solid var(--gold);}
+  header .eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold-strong);font-weight:700;}
+  header h1{margin:6px 0 4px;font-size:24px;font-weight:800;}
+  header p{margin:4px 0 0;opacity:.82;font-size:13px;}
+  h2{color:var(--ink);border-bottom:2px solid var(--gold);padding-bottom:5px;margin-top:30px;font-size:18px;}
+  h3{color:var(--ink);margin:18px 0 6px;font-size:15px;}
+  .takeaways{background:#fff;border-left:6px solid var(--gold);box-shadow:0 1px 4px rgba(42,38,32,.08);padding:14px 18px;border-radius:8px;margin:16px 0;}
+  .takeaways strong{color:var(--ink);}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;background:#fff;}
+  th{background:var(--ink);color:#fff;text-align:left;padding:8px 10px;font-size:12.5px;letter-spacing:.03em;}
+  td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+  tr:nth-child(even) td{background:#FAF7F0;}
+  .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:11.5px;font-weight:700;}
+  .b-ok{background:#E4EFE1;color:#2F6B2F;}.b-warn{background:#FBF0D9;color:#8A5A00;}.b-block{background:#F9E2E0;color:#99332C;}.b-hi{background:var(--gold);color:#fff;}
+  .stars{color:var(--gold-strong);letter-spacing:.05em;font-weight:700;}
+  .rec{background:#fff;border:1px solid var(--gold);border-left:6px solid var(--gold-strong);border-radius:8px;padding:12px 16px;margin:8px 0;}
+  .rec .num{display:inline-block;background:var(--ink);color:#fff;border-radius:6px;padding:1px 9px;font-weight:800;font-size:12px;margin-right:8px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:12px 0;}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;box-shadow:0 1px 3px rgba(42,38,32,.06);}
+  .card h4{margin:0 0 6px;color:var(--ink);font-size:13.5px;}
+  .muted{color:#8A8378;font-size:12px;}
+  .foot{margin-top:34px;font-size:11.5px;color:#8A8378;border-top:1px solid var(--line);padding-top:12px;}
+  code{background:#EFE9DC;padding:1px 5px;border-radius:4px;font-size:12px;color:#5A4A2E;}
+  .flow{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;margin:14px 0;}
+  ul{margin:6px 0 12px;padding-left:22px;}
+  li{margin-bottom:5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Atrium · Command Center Review</div>
+  <h1>Memory Orbit Gap Analysis + Abacus.AI Integration Roadmap</h1>
+  <p>2026-08-18 · Claude Code review of cc.theatrium.tech (byte-identical local copy) vs the Memory Orbit Visual Design Brief · Prepared for Vincent</p>
+</header>
+
+<h2>Key Takeaways</h2>
+<div class="takeaways">
+  <strong>What matters:</strong>
+  <ul>
+    <li>The app is <strong>80% of the way</strong> to the brief — real data, working 3D projection engine, Orbit V2 (vector search, cinematic zoom, Memory Brief modal) already shipped and live.</li>
+    <li>The single biggest gap: <strong>there is no planet.</strong> The hub is a faint 46px glow dot; the brief's whole emotional payload (Saturn flyby + rim glow) is absent. One sphere + three compositing tricks + two motion curves ≈ <strong>2 focused days of canvas work</strong>.</li>
+    <li><strong>3 real bugs found:</strong> (1) <code>/open</code> on Linux can serve <code>.env</code>-class secrets — fix before sharing any demo login; (2) CRON_JOBS + calendar are hardcoded snapshots from Aug 16–17, already stale; (3) sparse vaults (&lt;3 nodes/zone) collapse the ring — young vaults look broken.</li>
+    <li><strong>Abacus.AI is worth wiring in Phase 1</strong> — but not for DB/embeddings/payments (non-goals). Highest-value: RouteLLM TTS fallback for agent voices, free LLM auto-summaries for the Memory Brief, one-time generated scene assets.</li>
+    <li>Quick wins (~3h, no backend): kill the floor grid → slow rotation + drift → vignette/lens flare → palette tokens → true concentric rings. That's ~70% of the visual gap.</li>
+  </ul>
+</div>
+
+<h2>Knowledge Graph</h2>
+<div class="flow">
+<svg viewBox="0 0 940 330" xmlns="http://www.w3.org/2000/svg" font-family="Montserrat, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#B08D57"/></marker>
+  </defs>
+  <!-- Nodes -->
+  <rect x="20" y="20" width="200" height="64" rx="10" fill="#2A2620"/>
+  <text x="120" y="46" fill="#fff" font-size="14" font-weight="700" text-anchor="middle">Command Center</text>
+  <text x="120" y="66" fill="#CDA526" font-size="11" text-anchor="middle">cc.theatrium.tech · live</text>
+
+  <rect x="300" y="20" width="170" height="64" rx="10" fill="#F6F3ED" stroke="#B08D57"/>
+  <text x="385" y="46" fill="#2A2620" font-size="13" font-weight="700" text-anchor="middle">Memory Orbit Brief</text>
+  <text x="385" y="66" fill="#8A8378" font-size="11" text-anchor="middle">Saturn flyby · 5 approaches</text>
+
+  <rect x="560" y="20" width="170" height="64" rx="10" fill="#F6F3ED" stroke="#B08D57"/>
+  <text x="645" y="46" fill="#2A2620" font-size="13" font-weight="700" text-anchor="middle">Abacus.AI</text>
+  <text x="645" y="66" fill="#8A8378" font-size="11" text-anchor="middle">RouteLLM · 35 img / 32 vid / TTS</text>
+
+  <rect x="780" y="20" width="140" height="64" rx="10" fill="#2A2620"/>
+  <text x="850" y="46" fill="#fff" font-size="13" font-weight="700" text-anchor="middle">Orbit V2</text>
+  <text x="850" y="66" fill="#CDA526" font-size="11" text-anchor="middle">already deployed</text>
+
+  <rect x="20" y="140" width="200" height="58" rx="10" fill="#F6F3ED" stroke="#CDA526" stroke-width="2"/>
+  <text x="120" y="164" fill="#2A2620" font-size="12.5" font-weight="700" text-anchor="middle">GAP · no planet</text>
+  <text x="120" y="183" fill="#8A8378" font-size="10.5" text-anchor="middle">hub = 46px glow dot</text>
+
+  <rect x="300" y="140" width="170" height="58" rx="10" fill="#F6F3ED" stroke="#CDA526" stroke-width="2"/>
+  <text x="385" y="164" fill="#2A2620" font-size="12.5" font-weight="700" text-anchor="middle">GAP · floor grid</text>
+  <text x="385" y="183" fill="#8A8378" font-size="10.5" text-anchor="middle">says "room" not "space"</text>
+
+  <rect x="560" y="140" width="170" height="58" rx="10" fill="#E4EFE1" stroke="#2F6B2F"/>
+  <text x="645" y="164" fill="#2F6B2F" font-size="12.5" font-weight="700" text-anchor="middle">BUG · /open leaks .env</text>
+  <text x="645" y="183" fill="#8A8378" font-size="10.5" text-anchor="middle">Linux path, no secret filter</text>
+
+  <rect x="780" y="140" width="140" height="58" rx="10" fill="#FBF0D9" stroke="#8A5A00"/>
+  <text x="850" y="164" fill="#8A5A00" font-size="12.5" font-weight="700" text-anchor="middle">STALE · cron/cal</text>
+  <text x="850" y="183" fill="#8A8378" font-size="10.5" text-anchor="middle">hardcoded Aug 16–17</text>
+
+  <rect x="300" y="250" width="170" height="58" rx="10" fill="#2A2620"/>
+  <text x="385" y="274" fill="#fff" font-size="12.5" font-weight="700" text-anchor="middle">Quick wins</text>
+  <text x="385" y="293" fill="#CDA526" font-size="10.5" text-anchor="middle">~3h · 70% of visual gap</text>
+
+  <rect x="560" y="250" width="170" height="58" rx="10" fill="#2A2620"/>
+  <text x="645" y="274" fill="#fff" font-size="12.5" font-weight="700" text-anchor="middle">Abacus Phase 1</text>
+  <text x="645" y="293" fill="#CDA526" font-size="10.5" text-anchor="middle">TTS fallback · summaries · assets</text>
+
+  <!-- Edges -->
+  <line x1="220" y1="52" x2="298" y2="52" stroke="#B08D57" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="470" y1="52" x2="558" y2="52" stroke="#B08D57" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="730" y1="52" x2="778" y2="52" stroke="#B08D57" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="120" y1="84" x2="120" y2="138" stroke="#CDA526" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="385" y1="84" x2="385" y2="138" stroke="#CDA526" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="645" y1="84" x2="645" y2="138" stroke="#CDA526" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="850" y1="84" x2="850" y2="138" stroke="#CDA526" stroke-width="1.5" marker-end="url(#arr)"/>
+  <line x1="385" y1="198" x2="385" y2="248" stroke="#B08D57" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="645" y1="198" x2="645" y2="248" stroke="#B08D57" stroke-width="2" marker-end="url(#arr)"/>
+</svg>
+</div>
+
+<h2>Logic Structure — Where the App Stands vs the Brief (A–E)</h2>
+<table>
+  <tr><th>Brief approach</th><th>Status</th><th>Evidence in code</th><th>Gap</th></tr>
+  <tr><td><strong>A. Saturn flyby framing</strong></td><td><span class="badge b-block">NOT IMPLEMENTED</span></td><td>Hub centered <code>cx=W/2, cy=H*0.52</code> (line 766)</td><td>No off-center composition; planet occupies ~0% of viewport (brief: 40%)</td></tr>
+  <tr><td><strong>B. Atmospheric rim glow</strong></td><td><span class="badge b-block">NOT IMPLEMENTED</span></td><td>46px corona, no disc (1011–1015)</td><td>No lit sphere, no Fresnel rim, no 1.6× halo</td></tr>
+  <tr><td><strong>C. Holographic data rings</strong></td><td><span class="badge b-warn">PARTIAL</span></td><td>Zone polygons, dashed, alpha 0.18 (1561–1576)</td><td>Rings vanish &lt;3 nodes; wrong color model; no dash drift</td></tr>
+  <tr><td><strong>D. Gold-dust node halos</strong></td><td><span class="badge b-warn">PARTIAL</span></td><td>Opaque sprite end <code>#5A4A2E</code> (827)</td><td>Solid balls not dust; no hot-node 3s pulse; no screen composite</td></tr>
+  <tr><td><strong>E. Camera drift</strong></td><td><span class="badge b-warn">PARTIAL</span></td><td><code>rotY += 0.00025</code> (980)</td><td>0.86°/s — 2.9× too fast; zero sine drift, no 24s loop</td></tr>
+</table>
+
+<h2>Top 10 Recommendations (ranked by demo impact)</h2>
+<div class="rec"><span class="num">1</span><strong>Build the planet</strong> — replace hub block with a lit sphere: radial gradient disc (light upper-right), Fresnel rim, 1.6× atmosphere halo, A.I.O.S. label on the dark side. <span class="stars">★★★★★</span> · ~2h</div>
+<div class="rec"><span class="num">2</span><strong>Saturn framing</strong> — <code>cx=W*0.63, cy=H*0.64</code>, scale RADII/FOCAL by <code>min(W,H)/1000</code>. Upper-left negative space holds UI. <span class="stars">★★★★★</span> · ~1h</div>
+<div class="rec"><span class="num">3</span><strong>True concentric rings</strong> — fixed circles through the projector (64-seg), base+core strokes, 15% zone tint, 4px/12px dash drifting 2px/s, drop the &lt;3-node early return. <span class="stars">★★★★☆</span> · ~1.5h</div>
+<div class="rec"><span class="num">4</span><strong>Ring occlusion</strong> — split each ring at the planet's angular span; far arc 50% dimmed/desaturated, near arc bright. The cue that sells "sphere". <span class="stars">★★★★☆</span> · ~2h</div>
+<div class="rec"><span class="num">5</span><strong>Rotation to 0.3°/s + 24s sine drift</strong> — <code>rotY += 0.000087</code>, ±10px/±6px drift applied to camera targets only when autoRot && nothing selected. <span class="stars">★★★★☆</span> · ~30min</div>
+<div class="rec"><span class="num">6</span><strong>Gold-dust nodes + hot-node breathing</strong> — transparent sprite falloff, screen composite, 3s 1.0→1.25→1.0 pulse using existing <code>hotFiles</code>. <span class="stars">★★★★☆</span> · ~1h</div>
+<div class="rec"><span class="num">7</span><strong>Retire the floor grid</strong> — delete the <code>drawFloor()</code> call (line 1007) or drop alphas to ~0.03; add 40–60 drifting dust specks. <span class="stars">★★★★☆</span> · 15–30min</div>
+<div class="rec"><span class="num">8</span><strong>Vignette + lens flare</strong> — one radial vignette pass (0.25 edge) drawn last; two ≤0.08 cream streaks upper-left. <span class="stars">★★★☆☆</span> · 30min</div>
+<div class="rec"><span class="num">9</span><strong>De-clutter + palette tokens</strong> — legend into the left rail, directive strip → 36px minibar; align <code>--gold:#B08B57</code>, <code>--cream:#F6EBD0</code> in both :root blocks. <span class="stars">★★★☆☆</span> · ~1h</div>
+<div class="rec"><span class="num">10</span><strong>Reduced-motion + perf mode</strong> — <code>prefers-reduced-motion</code> guard, low-power (stars 220→90), node-glow cap ~80 at low zoom. <span class="stars">★★★☆☆</span> · ~1h</div>
+
+<h3>Bugs found (fix opportunistically — one is security)</h3>
+<table>
+  <tr><th>Severity</th><th>Finding</th><th>Fix</th></tr>
+  <tr><td><span class="badge b-block">SECURITY</span></td><td><code>/open</code> on Linux serves any file under allowed dirs — no secret-name filter (<code>cc_server.py:832-865</code>); filter exists only in <code>scan_files</code> (178)</td><td>Add the same <code>.env / payfast / auth / secret / token / credential / password</code> blocklist before serving</td></tr>
+  <tr><td><span class="badge b-warn">CREDIBILITY</span></td><td><code>CRON_JOBS</code> (201) + <code>calendar_events</code> (212) are hardcoded snapshots from Aug 16–17</td><td>Read from vault files (<code>ops/calendar.md</code>, cron JSON) like directives do</td></tr>
+  <tr><td><span class="badge b-warn">UX</span></td><td>Non-clickable nodes give zero hover feedback (<code>hitNode</code>, 870–881)</td><td>Add a name-only hover tooltip for non-clickable nodes</td></tr>
+</table>
+
+<h2>Abacus.AI Integration Roadmap (recommendation-only — no Abacus calls made)</h2>
+<div class="grid2">
+  <div class="card">
+    <h4>Phase 0 · Verify (this week, $0)</h4>
+    <ul>
+      <li>Confirm Basic vs Pro tier (Pro ≈ $20/user/mo, 30K credits — media features assume Pro headroom)</li>
+      <li>Move <code>ABACUS_API_KEY</code> from <code>abacus-ai-eval/.env</code> to VPS env; all calls proxied server-side behind <code>CC_TOKEN</code> (never ship key to browser)</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Phase 1 · Quick wins (1–2 days)</h4>
+    <ul>
+      <li><strong>RouteLLM TTS fallback</strong> — elevenlabs / minimax_tts as a /tts rung when relay TTS is down; per-agent fixed voices</li>
+      <li><strong>Brief auto-summaries</strong> — gemini-3.5-flash-lite (~$0.0000003/tok) or haiku; cached by path+mtime like embeddings</li>
+      <li><strong>One-time scene assets</strong> — flux2_pro nebula backdrop, auth-gate backdrop, og:image; static, zero runtime cost</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Phase 2 · Product features (1–2 weeks)</h4>
+    <ul>
+      <li><strong>Memory-brief postcards</strong> — nano_banana 512×512 ink/gold thumbnails from doc title+preview, disk-cached</li>
+      <li><strong>Chat fallback brain</strong> — claude-sonnet-5 with agent bio when relay 502s</li>
+      <li><strong>Avatar pipeline</strong> — ideogram_character for agent #8 + cloned-agent avatars (monetizable Atrium feature)</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Phase 3 · Marketing (optional)</h4>
+    <ul>
+      <li><strong>Cinematic demo loop</strong> — one vejo31_lite / kling clip from the concept art (validate undocumented video endpoint first; keep Higgsfield for production)</li>
+      <li><strong>Hosted demo mirror</strong> — sanitized static snapshot on *.abacusai.app free tier for prospects</li>
+    </ul>
+  </div>
+</div>
+
+<h3>Abacus non-goals (do not revisit)</h3>
+<ul>
+  <li><strong>No Abacus DB / vector store</strong> — 0 connectors/datasets, no pgvector; keep vault + Ollama qwen3-embedding (verified: no embedding models in RouteLLM list)</li>
+  <li><strong>No Abacus billing</strong> — none exists; stay on Stripe / PayFast / Multica</li>
+  <li><strong>Risks:</strong> image/video models are market-rate with null token rates (cache aggressively, per-day caps); undocumented video endpoint (one paid validation call); tier gating; TTS latency → keep as fallback not primary</li>
+</ul>
+
+<h2>Recommendation</h2>
+<div class="rec">
+  <strong>Decision:</strong> Run the ~3h quick-win batch this afternoon (recs 7 → 5 → 8 → 9 → 3) — ~70% of the visual gap with no backend changes and no Abacus spend. Then commit 2 days to the planet + occlusion + drift (recs 1, 2, 4, 6) before the next demo. In parallel, wire Abacus Phase 0–1 (TTS fallback + auto-summaries + scene assets) — highest value-per-credit.
+  <br><br><strong>Why:</strong> The brief and codebase are closer than they look — the projection engine, radii, pulse system and palette are already in place. What separates the build from the brief is one rendered sphere, three compositing tricks, and two motion curves. Abacus media lands on a surface that deserves it only after the visual pass.
+</div>
+
+<div class="foot">Generated by Claude Code (kimi-k3 via kimi-coding) · QA'd by Solari1 against source (line numbers verified) · Sources: memory-orbit-visual-brief.md (2026-08-18), cc_server.py / index.html (atrium-command-center), abacus_ai_atrium_recommendation.html (2026-08-13), Multica board issues 05574731 / 5fbc361f / 353115fd · Atrium theme #2A2620 / #B08D57 / #F6F3ED</div>
+</div>
+</body>
+</html>
