@@ -1620,13 +1620,48 @@ function zoneColor(z){ return ZONE_COLORS[z] || '#C6B3BB'; }
 function zoneLabel(z){ return ZONE_LABELS[z] || String(z||'').toUpperCase(); }
 
 function drawFloor(){
-  // soft glow pool at the floor centre only — the radial spokes and concentric
-  // rings were removed because they rose into the skyline and covered the stars.
+  // Perspective floor grid (grounding plane) — restored 2026-08-20 per Vincent:
+  // bring back the floor, ONLY the floor. The old full-extent spokes/rings rose
+  // into the starry skyline (worst when zooming in); those skyward parts stay
+  // removed by hard-clipping ALL floor drawing to the band below the horizon.
+  // Stars, sky and graph stay untouched; the orbit is grounded again.
   const fy = 165;                 // floor plane depth (below the graph origin)
+  const horizonY = cy * 0.95;     // screen-space clip: nothing drawn above this
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, horizonY, W, Math.max(1, H - horizonY)); ctx.clip();
+
+  const R = 560, N = 9;
+  // radial spokes (clipped to the lower band)
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(217,185,120,.14)';
+  for(let i=0;i<18;i++){
+    const a = i/18*Math.PI*2;
+    const p0 = project(Math.cos(a)*24, fy, Math.sin(a)*24);
+    const p1 = project(Math.cos(a)*R, fy, Math.sin(a)*R);
+    if(p0.y < horizonY && p1.y < horizonY) continue;   // fully in the sky: skip
+    ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+  }
+  // concentric rings (ellipse-sampled through the projector, depth-faded)
+  for(let i=1;i<=N;i++){
+    const r = R*i/N;
+    ctx.strokeStyle = 'rgba(217,185,120,' + (0.12 - 0.08*(i/N)).toFixed(3) + ')';
+    ctx.beginPath();
+    let drawn = 0;
+    for(let j=0;j<=48;j++){
+      const a = j/48*Math.PI*2;
+      const p = project(Math.cos(a)*r, fy, Math.sin(a)*r);
+      if(p.y < horizonY){ if(drawn){ ctx.stroke(); drawn = 0; } ctx.beginPath(); continue; }
+      if(drawn===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+      drawn++;
+    }
+    if(drawn) ctx.stroke();
+  }
+  // glow pool at the floor centre
   const pc = project(0, fy, 0);
   const g = ctx.createRadialGradient(pc.x,pc.y,0, pc.x,pc.y,110);
   g.addColorStop(0,'rgba(217,185,120,.12)'); g.addColorStop(1,'rgba(217,185,120,0)');
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(pc.x,pc.y,110,0,Math.PI*2); ctx.fill();
+  ctx.restore();
 }
 function drawZoneRings(projMap){
   const byZone = {};
