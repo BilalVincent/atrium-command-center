@@ -362,7 +362,7 @@ body{background:#0C0B08;color:var(--ink)}
 .vital .vv{font-size:19px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1;margin-top:2px}
 .vital .vs{font-size:9px;color:var(--gold-bright);font-weight:700}
 .vital canvas{position:absolute;right:4px;bottom:4px;width:52px;height:22px;opacity:.9}
-.directives{padding:12px 12px 4px;border-bottom:1px solid var(--line);flex:0 0 auto;max-height:150px;overflow-y:auto}
+.directives{padding:12px 12px 4px;border-bottom:1px solid var(--line);flex:0 0 auto}
 .dir{display:flex;gap:8px;align-items:flex-start;padding:4px 2px;cursor:pointer;border-radius:8px}
 .dir:hover{background:rgba(232,207,160,.06)}
 .dir .box{width:13px;height:13px;border:1.5px solid var(--gold);border-radius:4px;flex:0 0 auto;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#14110D}
@@ -1726,7 +1726,7 @@ function renderVitals(){
 function renderDirectives(){
   const el = $('#directiveList'); if(!el) return;
   const items = STATE.directives || [];
-  el.innerHTML = items.length ? items.map((d,i)=>'<div class="dir'+(d.done?' done':'')+'" data-i="'+i+'"><span class="box">'+(d.done?'✓':'')+'</span><span class="dt">'+esc(d.text)+'</span></div>').join('')
+  el.innerHTML = items.length ? items.slice(0,3).map((d,i)=>'<div class="dir'+(d.done?' done':'')+'" data-i="'+i+'"><span class="box">'+(d.done?'✓':'')+'</span><span class="dt">'+esc(d.text)+'</span></div>').join('')
     : '<div class="empty">No directives.</div>';
   el.querySelectorAll('.dir').forEach(row=>{
     row.onclick = ()=>{
