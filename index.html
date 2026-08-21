@@ -40,17 +40,7 @@ button{font-family:inherit;cursor:pointer}
 .clock{font-size:12px;color:var(--ink-mute);font-variant-numeric:tabular-nums;letter-spacing:.04em}
 
 .left{grid-area:left;display:flex;flex-direction:column;border-right:1px solid var(--line);background:var(--paper);overflow:hidden}
-.tabs{display:flex;flex:0 0 auto;gap:4px;padding:10px 10px 8px;border-bottom:1px solid var(--line)}
-.tab{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px 7px;border:1px solid transparent;border-radius:10px;background:none;color:var(--ink-mute);font-size:9.5px;font-weight:700;letter-spacing:.05em;transition:all .13s ease;min-width:0}
-.tab .ic{font-size:15px;line-height:1;color:var(--gold-strong)}
-.tab .lb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.tab .count{font-size:9px;font-weight:800;color:var(--ink-mute);background:var(--cream);border:1px solid var(--line);border-radius:999px;padding:0 6px;line-height:1.5}
-.tab:hover{background:var(--cream)}
-.tab.active{background:var(--gold-pale);border-color:var(--gold);color:var(--ink)}
-.tab.active .count{background:var(--gold);color:#fff;border-color:var(--gold)}
-.panel{flex:1 1 auto;overflow-y:auto;display:flex;flex-direction:column;min-height:0}
 .panel[hidden]{display:none}
-.panel-list{display:flex;flex-direction:column;gap:3px;padding:12px 12px 16px}
 .search{position:relative;flex:0 0 auto;margin:10px 12px 0}
 .search .s-ic{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-mute);font-size:14px;pointer-events:none}
 .search input{width:100%;font-size:12.5px;font-family:inherit;padding:8px 10px 8px 28px;border:1px solid var(--line-strong);border-radius:10px;background:#fff;outline:none}
@@ -296,12 +286,6 @@ body{background:#0C0B08;color:var(--ink)}
 .chip.ok b{color:var(--gold-bright)} .chip.ok .st{background:#D9B978;box-shadow:0 0 6px #D9B978}
 .chip.warn b{color:#C08A4D} .chip.warn .st{background:#C08A4D}
 .left,.right{background:var(--paper);border-color:var(--line)}
-.tabs{border-color:var(--line)}
-.tab{color:var(--ink-mute)} .tab .ic{color:var(--gold)}
-.tab .count{background:rgba(21,19,15,.8);border-color:var(--line);color:var(--ink-mute)}
-.tab:hover{background:rgba(232,207,160,.08)}
-.tab.active{background:rgba(176,141,87,.18);border-color:var(--gold);color:var(--ink)}
-.tab.active .count{background:var(--gold);color:#14110D}
 .search input{background:#0F0D0A;border-color:var(--line-strong);color:var(--ink)}
 .search input:focus{border-color:var(--gold)}
 .agent:hover,.row:hover{background:rgba(232,207,160,.07)}
@@ -378,10 +362,7 @@ body{background:#0C0B08;color:var(--ink)}
 .doc .dr{font-size:9px;color:var(--ink-mute)}
 .doc .est{font-size:9px;font-weight:800;color:var(--gold-bright);background:rgba(176,141,87,.18);border-radius:999px;padding:2px 7px;flex:0 0 auto}
 /* ---- memory tab ---- */
-.zone-filters{display:flex;gap:5px;padding:10px 12px 0;flex-wrap:wrap;flex:0 0 auto}
-.zf{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:3px 9px;border-radius:999px;border:1px solid var(--line-strong);background:transparent;color:var(--ink-mute);cursor:pointer}
 .zf.on{color:#14110D}
-.mem-zone{margin-bottom:2px}
 .mem-zone-h{display:flex;align-items:center;gap:7px;padding:8px 12px 4px;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--ink-mute)}
 .mem-zone-h .zdot{width:8px;height:8px;border-radius:50%}
 .mem-zone-h .zc{color:var(--ink-soft);font-weight:700}
@@ -617,16 +598,17 @@ body{background:#0C0B08;color:var(--ink)}
 @media (max-width:1400px){ .hud-right{flex:1 0 100%} }
 /* zoom-out moves below the hud rows so it never covers the FOCUS pill */
 .zoom-out{top:100px}
-/* B. Corner cluster — status group | hairline divider | controls group */
-.cluster-group{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
-.cluster-div{width:2px;height:20px;flex:0 0 auto;background:rgba(217,185,120,.18);border-radius:1px;align-self:center}
-.g-status .chip{font-size:9.5px;padding:4px 10px}
-.g-status .live{font-size:10px;gap:6px;letter-spacing:.1em}
-.g-controls .dash-btn{font-size:10px;padding:5px 10px}
-.g-controls .hud-filter{font-size:10px;padding:5px 10px}
-.g-controls .clock{margin-left:auto}
-/* on phones the status group hides (v6.1 hid chips+live); controls keep clock */
-@media (max-width:600px){ .topbar .right .g-status{display:none} }
+/* B. Corner cluster — enlarged two-row glass panel */
+.topbar .right .corner-panel{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:16px;background:rgba(250,247,240,.055);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(217,185,120,.22);box-shadow:0 18px 50px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.07)}
+.corner-row{display:flex;align-items:center;gap:8px}
+.corner-row.status-row{justify-content:flex-end}
+.corner-row .corner-status{display:flex;align-items:center;gap:8px}
+.corner-row.nav-row{justify-content:flex-end;flex-wrap:wrap}
+.corner-divider{width:100%;height:1px;background:rgba(217,185,120,.15);margin:2px 0;flex-shrink:0}
+.topbar .right .chip{font-size:10px;padding:4px 8px}
+.topbar .right .live{font-size:10px;gap:6px;letter-spacing:.1em}
+.topbar .right .clock{font-size:11px}
+@media (max-width:600px){ .topbar .right .corner-status{display:none} }
 /* C. Left rail — directives/documents cards hidden (containers kept so
    renderDirectives/renderDocuments JS and node-click access stay intact) */
 </style>
@@ -676,22 +658,26 @@ body{background:#0C0B08;color:var(--ink)}
       <div class="brand-text"><span class="name">A.T.R.I.U.M.</span><span class="tag">AI Operating System</span></div>
     </div>
     <div class="right">
-      <div class="cluster-group g-status">
-        <span class="chip system" id="systemChip" title=""><span class="st"></span>SYSTEM · <b>—</b></span>
-        <span class="live" id="liveBadge"><span class="dot"></span><span id="liveText">Connecting…</span></span>
-      </div>
-      <span class="cluster-div" aria-hidden="true"></span>
-      <div class="cluster-group g-controls">
-        <button class="dash-btn" id="dashBtn"><span class="fic">📊</span><span class="fl">Dashboard</span></button>
-        <button class="dash-btn" id="taskBtn"><span class="fic">⚡</span><span class="fl">Task</span></button>
-        <div class="hud-filters" id="hudFilters">
-          <button class="hud-filter active" data-filter="agents"><span class="fic">◉</span><span class="fl">Agents</span></button>
-          <button class="hud-filter" data-filter="chats"><span class="fic">💬</span><span class="fl">Chats</span></button>
-          <button class="hud-filter" data-filter="cron"><span class="fic">⏱</span><span class="fl">Cron</span></button>
-          <button class="hud-filter" data-filter="files"><span class="fic">📁</span><span class="fl">Files</span></button>
-          <button class="hud-filter" data-filter="memory"><span class="fic">🧠</span><span class="fl">Memory</span></button>
+      <div class="corner-panel">
+        <div class="corner-row status-row">
+          <div class="corner-status">
+            <span class="chip system" id="systemChip" title=""><span class="st"></span>SYSTEM · <b>—</b></span>
+            <span class="live" id="liveBadge"><span class="dot"></span><span id="liveText">Connecting…</span></span>
+          </div>
+          <span class="clock" id="clock">—</span>
         </div>
-        <span class="clock" id="clock">—</span>
+        <span class="corner-divider" aria-hidden="true"></span>
+        <div class="corner-row nav-row">
+          <button class="dash-btn" id="dashBtn"><span class="fic">📊</span><span class="fl">Dashboard</span></button>
+          <button class="dash-btn" id="taskBtn"><span class="fic">⚡</span><span class="fl">Task</span></button>
+          <div class="hud-filters" id="hudFilters">
+            <button class="hud-filter active" data-filter="agents"><span class="fic">◉</span><span class="fl">Agents</span></button>
+            <button class="hud-filter" data-filter="chats"><span class="fic">💬</span><span class="fl">Chats</span></button>
+            <button class="hud-filter" data-filter="cron"><span class="fic">⏱</span><span class="fl">Cron</span></button>
+            <button class="hud-filter" data-filter="files"><span class="fic">📁</span><span class="fl">Files</span></button>
+            <button class="hud-filter" data-filter="memory"><span class="fic">🧠</span><span class="fl">Memory</span></button>
+          </div>
+        </div>
       </div>
     </div>
   </header>
@@ -711,24 +697,6 @@ body{background:#0C0B08;color:var(--ink)}
     <div class="documents" style="display:none">
       <div class="rail-sec"><span>Documents</span><span id="docCount" style="font-size:9px">—</span></div>
       <div id="documentList"></div>
-    </div>
-    <nav class="tabs" id="tabs">
-      <button class="tab active" data-tab="agents"><span class="ic">◉</span><span class="lb">Agents</span><span class="count" id="agentCount">0</span></button>
-      <button class="tab" data-tab="chats"><span class="ic">💬</span><span class="lb">Chats</span><span class="count" id="chatCount">0</span></button>
-      <button class="tab" data-tab="cron"><span class="ic">⏱</span><span class="lb">Cron</span><span class="count" id="cronCount">0</span></button>
-      <button class="tab" data-tab="files"><span class="ic">📁</span><span class="lb">Files</span><span class="count" id="assetCount">0</span></button>
-      <button class="tab" data-tab="memory"><span class="ic">🧠</span><span class="lb">Memory</span><span class="count" id="memCount">0</span></button>
-    </nav>
-    <div class="panel" id="panel-agents"><div class="panel-list" id="agentList"></div></div>
-    <div class="panel" id="panel-chats" hidden><div class="panel-list" id="chatList"></div></div>
-    <div class="panel" id="panel-cron" hidden><div class="panel-list" id="cronList"></div></div>
-    <div class="panel" id="panel-files" hidden>
-      <div class="search"><span class="s-ic">⌕</span><input id="fileSearch" placeholder="Search files…" autocomplete="off"></div>
-      <div class="panel-list" id="assetList"></div>
-    </div>
-    <div class="panel" id="panel-memory" hidden>
-      <div class="zone-filters" id="zoneFilters"></div>
-      <div class="panel-list" id="memoryList"></div>
     </div>
     </div>
     <div class="calendar" id="calendar"></div>
@@ -914,9 +882,6 @@ function applyState(){
   if(nodes.length !== lastNodeCount){ computeLayout(); lastNodeCount = nodes.length; }
   renderAgents(); renderChats(); renderCron(); renderAssets(); renderMemoryTab(); renderCalendar();
   applyMemoryState();
-  $('#agentCount').textContent = agentNodes.length;
-  $('#chatCount').textContent = chatCount();
-  $('#cronCount').textContent = (STATE.cron||[]).length;
   $('#hudLive').textContent = nodes.length + ' nodes · ' + G.edges.length + ' links';
   if(!selected.id) setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
   if(!selected.id || !nodeMap[selected.id]){
@@ -934,7 +899,6 @@ function refreshState(){
   });
   updateAgentStatus(); renderCron(); renderAssets(); renderCalendar(); renderMemoryTab();
   applyMemoryState();
-  $('#cronCount').textContent = (STATE.cron||[]).length;
   if($('#dashboard').classList.contains('show')) renderDashboard();
   const n = nodeMap[selected.id]; if(n) renderRight(n);
 }
@@ -1502,7 +1466,7 @@ setTimeout(()=>{ if(!tipShown){ showTip(true); tipShown=true; setTimeout(()=>sho
    LEFT SIDEBAR
    ============================================================ */
 function renderAgents(){
-  const el = $('#agentList'); el.innerHTML='';
+  const el = $('#agentList'); if(!el) return; el.innerHTML='';
   agentNodes.forEach(n=>{
     const b = document.createElement('button');
     b.className = 'agent' + (selected.id===n.id ? ' active':'');
@@ -1524,7 +1488,7 @@ function updateAgentStatus(){
   });
 }
 function renderChats(){
-  const el = $('#chatList'); el.innerHTML='';
+  const el = $('#chatList'); if(!el) return; el.innerHTML='';
   const items = agentNodes.filter(n=>chatHist[n.agent] && chatHist[n.agent].length>1);
   if(!items.length){ el.innerHTML = '<div class="empty">No sessions yet — pick an agent and start one.</div>'; return; }
   items.forEach(n=>{
@@ -1537,7 +1501,7 @@ function renderChats(){
 function chatCount(){ return agentNodes.filter(n=>chatHist[n.agent] && chatHist[n.agent].length>1).length; }
 function lastUserMsg(id){ const h=chatHist[id]||[]; for(let i=h.length-1;i>=0;i--){ if(h[i].role==='user') return h[i].text.slice(0,34); } return ''; }
 function renderCron(){
-  const el = $('#cronList'); el.innerHTML='';
+  const el = $('#cronList'); if(!el) return; el.innerHTML='';
   (STATE.cron||[]).forEach(c=>{
     const b = document.createElement('button'); b.className='row';
     b.innerHTML = `<span class="ic">⏱</span><span class="body"><span class="l1">${esc(c.name)}</span><span class="l2">${esc(c.schedule)}</span></span><span class="pill ${c.on?'on':'off'}">${c.on?'on':'off'}</span>`;
@@ -1546,9 +1510,8 @@ function renderCron(){
   });
 }
 function renderAssets(){
-  const el = $('#assetList'); el.innerHTML='';
+  const el = $('#assetList'); if(!el) return; el.innerHTML='';
   const files = (STATE.files||[]).slice().sort((a,b)=>(b.mtime||0)-(a.mtime||0));
-  $('#assetCount').textContent = files.length;
   if(!files.length){ el.innerHTML = '<div class="empty">No files yet.</div>'; return; }
   files.forEach(f=>{
     const b = document.createElement('button'); b.className='row';
@@ -2219,7 +2182,6 @@ function fmtWhen(ts){
 function applyMemoryState(){
   renderProfiles(); renderDirectives(); renderDocuments(); renderLegend(); renderMemoryBrief();
   const mem = STATE.memory || {};
-  $('#memCount').textContent = mem.total || 0;
 }
 $('#briefClose').onclick = ()=>{ $('#briefPanel').classList.remove('show'); };
 
@@ -2354,7 +2316,7 @@ function renderMemoryList(){
   el.innerHTML = html || '<div class="empty">No memory in this zone.</div>';
   el.querySelectorAll('.row').forEach(r=>{ r.onclick = ()=>{ const n = nodeMap[r.dataset.id]; if(n) selectNode(n.id); }; });
 }
-function renderMemoryTab(){ renderZoneFilters(); renderMemoryList(); }
+function renderMemoryTab(){ const zf=$('#zoneFilters'), ml=$('#memoryList'); if(!zf && !ml) return; renderZoneFilters(); renderMemoryList(); }
 
 /* ---- Right panel: memory node ---- */
 function renderMemoryRight(n){
