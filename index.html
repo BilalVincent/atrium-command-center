@@ -395,7 +395,7 @@ body{background:#0C0B08;color:var(--ink)}
 .listen-btn:hover{background:var(--gold);color:#14110D}
 /* ---- full-brain orbit HUD filter pills (dark override — appended last) ---- */
 .hud-right{display:flex;gap:8px;align-items:center;pointer-events:none}
-.hud-filters{display:flex;gap:6px;align-items:center;pointer-events:auto}
+.hud-filters{display:flex;gap:6px;align-items:center;pointer-events:auto;flex-wrap:wrap}
 .hud-filter{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--gold-pale);background:rgba(12,11,8,.6);border:1px solid rgba(176,141,87,.35);border-radius:999px;padding:5px 12px;backdrop-filter:blur(4px);cursor:pointer;user-select:none;transition:all .15s ease;font-family:inherit;line-height:1}
 .hud-filter:hover{background:rgba(176,141,87,.25);color:var(--gold-bright);border-color:rgba(176,141,87,.65)}
 .hud-filter.active{background:var(--gold);color:#14110D;border-color:var(--gold)}
@@ -479,6 +479,18 @@ body{background:#0C0B08;color:var(--ink)}
 /* 6) filter pills (relocated into the topbar corner cluster) — glass */
 .hud-filters{pointer-events:auto}
 .hud-filter{background:rgba(250,247,240,.055);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(217,185,120,.22)}
+/* ============================================================
+   v6.3.1: CORNER PANEL SIZING — make the two-row panel fit the
+   desktop topbar without clipping the rightmost filter pills.
+   ============================================================ */
+.topbar .right .dash-btn{padding:5px 10px;font-size:10px}
+.topbar .right .hud-filter .fl{display:none}
+.topbar .right .hud-filters{flex:1 1 100%; justify-content:flex-end; gap:6px}
+.topbar .right .hud-filter{padding:0;min-width:34px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+.topbar .right .chip{font-size:9.5px;padding:3px 7px}
+.topbar .right .live{font-size:9.5px}
+.topbar .right .clock{font-size:10px}
+
 /* ============================================================
    v6.1: MOBILE-FRIENDLY OS CHROME — responsive breakpoints.
    Additive; wins by source order. Orbit engine JS/geometry
@@ -2364,10 +2376,13 @@ document.querySelectorAll('.tab').forEach(t=>{
 document.querySelectorAll('.hud-filter').forEach(b=>{
   b.addEventListener('click', ()=>{ setOrbitFilter(b.dataset.filter); });
 });
-$('#fileSearch').addEventListener('input', e=>{
-  const q = e.target.value.toLowerCase();
-  document.querySelectorAll('#assetList .row').forEach(r=>{ r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
-});
+const fileSearch = $('#fileSearch');
+if(fileSearch){
+  fileSearch.addEventListener('input', e=>{
+    const q = e.target.value.toLowerCase();
+    document.querySelectorAll('#assetList .row').forEach(r=>{ r.style.display = r.textContent.toLowerCase().includes(q) ? '' : 'none'; });
+  });
+}
 
 /* ============================================================
    ORBIT SEARCH
