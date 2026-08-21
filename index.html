@@ -122,16 +122,19 @@ canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touc
 .ghost-btn svg{width:34px;height:34px}
 @keyframes ghostHalo{0%,100%{box-shadow:0 0 0 0 var(--gold-glow),0 12px 28px rgba(0,0,0,.45)}50%{box-shadow:0 0 0 14px rgba(176,141,87,0),0 12px 28px rgba(0,0,0,.45)}}
 
-.chat{height:190px;flex:0 0 auto;display:flex;flex-direction:column;background:var(--paper);border-top:1px solid var(--line)}
-.chat-head{display:flex;align-items:center;gap:9px;padding:9px 16px;border-bottom:1px solid var(--line)}
+.chat{flex:1 1 auto;min-height:260px;display:flex;flex-direction:column;background:var(--paper);border-top:1px solid var(--line)}
+.chat-head{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--line)}
 .chat-head .who{font-size:12.5px;font-weight:800;display:flex;align-items:center;gap:8px}
 .chat-head .who .d{width:8px;height:8px;border-radius:50%;background:var(--gold)}
 .chat-head .ctx{font-size:11px;color:var(--ink-mute);margin-left:auto}
+.chat.active .chat-head{padding:5px 12px}
+.chat.active .chat-head .who{font-size:12px}
+.chat.active .chat-head .ctx{font-size:10px}
 .sound{width:28px;height:28px;border-radius:50%;border:1px solid var(--line-strong);background:var(--cream);font-size:13px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;transition:all .13s ease;margin-left:8px}
 .sound:hover{background:var(--gold-pale);border-color:var(--gold)}
 .sound.muted{opacity:.5}
-.chat-body{flex:1 1 auto;overflow-y:auto;padding:10px 16px;display:flex;flex-direction:column;gap:8px}
-.cmsg{max-width:80%;padding:8px 12px;border-radius:13px;font-size:13px;line-height:1.45;animation:rise .25s ease}
+.chat-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:4px}
+.cmsg{max-width:80%;margin:2px 0;padding:7px 10px;border-radius:13px;font-size:12.5px;line-height:1.4;animation:rise .25s ease}
 .cmsg.agent{background:var(--cream);border:1px solid var(--line);border-bottom-left-radius:4px;align-self:flex-start}
 .cmsg.user{background:var(--ink);color:var(--cream);border-bottom-right-radius:4px;align-self:flex-end}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -141,7 +144,7 @@ canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touc
 .thinking .dots span:nth-child(2){animation-delay:.15s}
 .thinking .dots span:nth-child(3){animation-delay:.3s}
 @keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
-.chat-in{display:flex;gap:8px;padding:9px 14px;border-top:1px solid var(--line)}
+.chat-in{display:flex;gap:8px;padding:7px 12px;border-top:1px solid var(--line);flex:0 0 auto}
 .chat-in input{flex:1 1 auto;min-width:0;font-size:13.5px;font-family:inherit;padding:9px 13px;border:1px solid var(--line-strong);border-radius:12px;background:#fff;outline:none}
 .chat-in input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-glow)}
 .chat-in .send{width:40px;height:40px;border-radius:50%;border:none;background:var(--gold);color:#fff;font-size:15px;flex:0 0 auto}
@@ -1680,6 +1683,8 @@ const chatHist = {};
 function setChat(n){
   if(!n) return;
   chatAgent = n.agent;
+  const chatEl = $('.chat');
+  if(chatEl) chatEl.classList.add('active');
   if(!chatHist[chatAgent]) chatHist[chatAgent] = [{role:'agent', text:'Hi, I\'m '+n.name+' — '+(n.personality || 'your '+n.role+'.')+' What can I take off your plate?'}];
   renderChat(n);
 }
