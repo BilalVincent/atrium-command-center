@@ -721,64 +721,157 @@ function markHot(){
 }
 function computeLayout(){
   layout = {};
-  const NA = Math.max(1, agentNodes.length);
-  const RA = 66, RF = 150;
-  const byOwner = {};
-  G.nodes.forEach(n=>{ if(n.type==='file'){ (byOwner[n.owner]=byOwner[n.owner]||[]).push(n); } });
-  agentNodes.forEach((a,i)=>{
-    const ang = (i/NA)*Math.PI*2 - Math.PI/2;
-    layout[a.id] = { x: RA*Math.cos(ang), y: RA*Math.sin(ang), z: 0 };
+  // ============================================================
+  // v5: FULL-3D semantic-cluster orbit.
+  // 1. Clusters by meaning (agents core, files-by-owner,
+  //    memory-by-zone, profiles, conversations, skills, cron).
+  // 2. Cluster centers packed on a Fibonacci sphere (tiered radii
+  //    -> volume, not a shell: inner core, mid content, outer shell).
+  // 3. Light deterministic 3D force pass inside each cluster
+  //    (repulsion + edge springs + center pull) so placement
+  //    encodes relationships (files lean toward their owner,
+  //    shared members sit between clusters).
+  // 4. Centroid locked EXACTLY to (0,0,0) on every recompute:
+  //    the graph grows outward in all directions, never drifts.
+  // ============================================================
+  // deterministic seeded PRNG -> layout stable across reloads
+  function hashStr(s){ let h=2166136261>>>0; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
+  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+  // golden-angle / Fibonacci sphere: i-th of n points, evenly spread over a sphere surface
+  function fibSphere(i, n, radius){
+    const golden = Math.PI*(3-Math.sqrt(5));          // ~2.39996
+    const y = 1 - (i/Math.max(1, n-1))*2;             // latitude, y in [-1,1]
+    const r = Math.sqrt(Math.max(0, 1 - y*y));
+    const theta = golden * i;
+    return { x: Math.cos(theta)*r*radius, y: y*radius, z: Math.sin(theta)*r*radius };
+  }
+
+  // ---- 1. semantic clusters ----
+  // dedupe by id (last occurrence wins, matching nodeMap semantics) so the
+  // force pass and centroid lock operate on unique positions only
+  const uniq = [];
+  { const seenIds = new Set();
+    for(let k=nodes.length-1;k>=0;k--){ if(!seenIds.has(nodes[k].id)){ seenIds.add(nodes[k].id); uniq.push(nodes[k]); } }
+    uniq.reverse(); }
+  const byOwner = {}, byZone = {};
+  uniq.forEach(n=>{
+    if(n.type==='file'){ (byOwner[n.owner]=byOwner[n.owner]||[]).push(n); }
+    else if(n.type==='memory'){ (byZone[n.zone]=byZone[n.zone]||[]).push(n); }
   });
-  agentNodes.forEach((a,i)=>{
-    const ang = (i/NA)*Math.PI*2 - Math.PI/2;
-    const files = byOwner[a.agent||a.id] || [];
-    files.forEach((f,k)=>{
-      const nf = Math.max(1, files.length);
-      const spread = Math.min(1.1, 0.10 + nf*0.05);
-      const fa = ang + (nf>1 ? ((k/(nf-1))-0.5)*2*spread : 0);
-      const r = RF + (k%5)*28;
-      layout[f.id] = { x: r*Math.cos(fa), y: r*Math.sin(fa), z: (k%7 - 3)*14 };
+  const clusters = [];
+  clusters.push({ id:'core:agents',   radius: 90,  members: uniq.filter(n=>n.type==='agent') });
+  clusters.push({ id:'core:profiles', radius: 120, members: uniq.filter(n=>n.type==='profile') });
+  Object.keys(byOwner).sort().forEach(o=> clusters.push({ id:'files:'+o, radius: 300, members: byOwner[o] }));
+  Object.keys(byZone).sort().forEach(z=> clusters.push({ id:'mem:'+z,    radius: 300, members: byZone[z] }));
+  const bySkillProfile = {};
+  uniq.forEach(n=>{ if(n.type==='skill'){ (bySkillProfile[n.profile||'shared']=bySkillProfile[n.profile||'shared']||[]).push(n); } });
+  Object.keys(bySkillProfile).sort().forEach(p=> clusters.push({ id:'skills:'+p, radius: 520, members: bySkillProfile[p] }));
+  clusters.push({ id:'conversations', radius: 520, members: uniq.filter(n=>n.type==='conversation') });
+  clusters.push({ id:'cron',          radius: 520, members: uniq.filter(n=>n.type==='cron') });
+  const assigned = new Set(); clusters.forEach(c=>c.members.forEach(n=>assigned.add(n.id)));
+  const misc = uniq.filter(n=>!assigned.has(n.id));
+  if(misc.length) clusters.push({ id:'misc', radius: 220, members: misc });
+  clusters.forEach(c=> c.members.sort((a,b)=> a.id<b.id?-1:1));   // deterministic member order
+
+  // ---- 2. cluster centers on the Fibonacci sphere ----
+  // Deterministic order: largest clusters first (tiebreak by id), then
+  // place centers in OPPOSITE-DIRECTION PAIRS across the sphere. This
+  // keeps the weighted center of mass ~0 before the final centroid lock,
+  // so the semantic core (agents) stays central while the graph fills a
+  // full 3D volume in all directions.
+  clusters.sort((a,b)=> (b.members.length - a.members.length) || (a.id<b.id?-1:1));
+  const N2 = Math.ceil(clusters.length/2);
+  clusters.forEach((c,i)=>{
+    const p = fibSphere(Math.floor(i/2), N2, c.radius);
+    const flip = (i%2===1) ? -1 : 1;
+    c.center = { x: p.x*flip, y: p.y*flip, z: p.z*flip };
+  });
+
+  // ---- 3. deterministic initial placement: seeded jitter around each center ----
+  clusters.forEach(c=>{
+    const jr = Math.min(c.radius*0.22, 26);
+    c.members.forEach(n=>{
+      const rng = mulberry32(hashStr(c.id+'|'+n.id));
+      layout[n.id] = {
+        x: c.center.x + (rng()*2-1)*jr,
+        y: c.center.y + (rng()*2-1)*jr,
+        z: c.center.z + (rng()*2-1)*jr
+      };
     });
   });
-  G.nodes.forEach(n=>{ if(n.type==='file' && !layout[n.id]){ const a=Math.random()*Math.PI*2; layout[n.id]={x:RF*Math.cos(a), y:RF*Math.sin(a), z:0}; } });
-  // memory orbital — zone rings around the core (multicolored second brain)
-  const memNodes = nodes.filter(n=>n.type==='memory');
-  const RADII = {index:225, wiki:265, raw:310, outputs:355, runs:400, ops:445, profile:205};
-  const byZone = {};
-  memNodes.forEach(n=>{ (byZone[n.zone]=byZone[n.zone]||[]).push(n); });
-  let memAngle = -Math.PI/2;
-  Object.keys(byZone).forEach(z=>{
-    const arr = byZone[z]; const r = RADII[z] || 310;
-    const step = Math.PI*2/Math.max(1,arr.length);
-    arr.forEach((n,k)=>{
-      const a = memAngle + k*step;
-      layout[n.id] = { x: r*Math.cos(a), y: r*Math.sin(a), z: ((k%7)-3)*9 };
-    });
-    memAngle += 0.55;
-  });
-  // cron orbit — outer ring
-  const cronNodes = nodes.filter(n=>n.type==='cron');
-  const R_C = 500;
-  cronNodes.forEach((n,i)=>{
-    const a = (i/Math.max(1,cronNodes.length))*Math.PI*2 - Math.PI/2;
-    layout[n.id] = { x: R_C*Math.cos(a), y: R_C*Math.sin(a), z: ((i%5)-2)*12 };
-  });
-  // full-brain orbit — deterministic rings for profiles / conversations / skills
-  const profNodes = nodes.filter(n=>n.type==='profile');
-  profNodes.forEach((n,i)=>{
-    const a = (i/Math.max(1,profNodes.length))*Math.PI*2 - Math.PI/2;
-    layout[n.id] = { x: 120*Math.cos(a), y: 120*Math.sin(a), z: ((i%3)-1)*8 };
-  });
-  const convNodes = nodes.filter(n=>n.type==='conversation');
-  convNodes.forEach((n,i)=>{
-    const a = (i/Math.max(1,convNodes.length))*Math.PI*2 - Math.PI/2;
-    layout[n.id] = { x: 300*Math.cos(a), y: 300*Math.sin(a), z: ((i%9)-4)*10 };
-  });
-  const skillNodes = nodes.filter(n=>n.type==='skill');
-  skillNodes.forEach((n,i)=>{
-    const a = (i/Math.max(1,skillNodes.length))*Math.PI*2 - Math.PI/2;
-    layout[n.id] = { x: 420*Math.cos(a), y: 420*Math.sin(a), z: ((i%11)-5)*8 };
-  });
+
+  // ---- 4. light deterministic force pass (120 iters, once at layout time) ----
+  const nodeList = uniq.slice();
+  const idx = {}; nodeList.forEach((n,i)=> idx[n.id]=i);
+  const pos = nodeList.map(n=> layout[n.id]);
+  const edgeList = G.edges.filter(e=> idx[e.source]!=null && idx[e.target]!=null);
+  const clusterOf = {}, centerOf = {};
+  clusters.forEach(c=> c.members.forEach(n=>{ clusterOf[n.id]=c; centerOf[n.id]=c.center; }));
+
+  const ITER = 120, REP_CUT = 52, K_REP = 0.045, EDGE_CAP = 4;
+  const K_EDGE = { owns:0.032, refs:0.024, mentions:0.028, maps:0.022 };
+  const K_CENTER = { 'core:agents':0.13, 'core:profiles':0.10, 'misc':0.06 };
+  const acc = nodeList.map(()=>({x:0,y:0,z:0}));
+
+  for(let it=0; it<ITER; it++){
+    // intra-cluster repulsion (local pairs only -> cheap)
+    for(const c of clusters){
+      const m = c.members;
+      for(let i=0;i<m.length;i++){
+        const pi = pos[idx[m[i].id]];
+        for(let j=i+1;j<m.length;j++){
+          const pj = pos[idx[m[j].id]];
+          let dx = pi.x-pj.x, dy = pi.y-pj.y, dz = pi.z-pj.z;
+          const d2 = dx*dx+dy*dy+dz*dz;
+          if(d2 >= REP_CUT*REP_CUT || d2 < 1e-8) continue;
+          const d = Math.sqrt(d2);
+          let f = K_REP*(REP_CUT-d)/d; if(f>4) f=4;
+          dx*=f; dy*=f; dz*=f;
+          pi.x+=dx; pi.y+=dy; pi.z+=dz;
+          pj.x-=dx; pj.y-=dy; pj.z-=dz;
+        }
+      }
+    }
+    // edge springs along real graph edges (files->owner, profile->its brain, refs/mentions).
+    // Forces are accumulated and then applied with a PER-NODE cap so high-degree hubs
+    // (e.g. an agent owning 24 files) cannot be dragged out of the core.
+    for(let k=0;k<edgeList.length;k++){
+      const e = edgeList[k];
+      const a = pos[idx[e.source]], b = pos[idx[e.target]];
+      const fa = acc[idx[e.source]], fb = acc[idx[e.target]];
+      let dx = b.x-a.x, dy = b.y-a.y, dz = b.z-a.z;
+      const d = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1e-4;
+      const kk = K_EDGE[e.kind] || 0.024;
+      let pull = kk*d*0.5; if(pull>3) pull=3;      // ideal length 0 -> pure attraction
+      dx/=d; dy/=d; dz/=d;
+      fa.x+=dx*pull; fa.y+=dy*pull; fa.z+=dz*pull;
+      fb.x-=dx*pull; fb.y-=dy*pull; fb.z-=dz*pull;
+    }
+    for(let i=0;i<nodeList.length;i++){
+      const f = acc[i];
+      const m2 = Math.hypot(f.x,f.y,f.z);
+      if(m2 > EDGE_CAP){ const s = EDGE_CAP/m2; f.x*=s; f.y*=s; f.z*=s; }
+      const p = pos[i];
+      p.x+=f.x; p.y+=f.y; p.z+=f.z;
+      f.x=0; f.y=0; f.z=0;
+    }
+    // gentle center pull toward each node's cluster Fibonacci position
+    for(const n of nodeList){
+      const c = clusterOf[n.id]; if(!c) continue;
+      const ct = centerOf[n.id], p = pos[idx[n.id]];
+      const kc = K_CENTER[c.id] || 0.05;
+      p.x += (ct.x-p.x)*kc; p.y += (ct.y-p.y)*kc; p.z += (ct.z-p.z)*kc;
+    }
+  }
+
+  // ---- 5. centroid lock: translate the whole graph so the center of
+  //          mass is EXACTLY (0,0,0) — runs on every recompute ----
+  let mx=0, my=0, mz=0;
+  for(const p of pos){ mx+=p.x; my+=p.y; mz+=p.z; }
+  const cnt = pos.length || 1;
+  mx/=cnt; my/=cnt; mz/=cnt;
+  for(const p of pos){ p.x-=mx; p.y-=my; p.z-=mz; }
+  nodeList.forEach((n,i)=> layout[n.id] = pos[i]);
 }
 
 /* ============================================================
@@ -1629,6 +1722,7 @@ function drawFloor(){
   const horizonY = cy * 0.95;     // screen-space clip: nothing drawn above this
   ctx.save();
   ctx.beginPath(); ctx.rect(0, horizonY, W, Math.max(1, H - horizonY)); ctx.clip();
+  ctx.globalAlpha = 0.7;   // v5: soften the floor so 3D nodes passing in front/behind read cleanly
 
   const R = 560, N = 9;
   // radial spokes (clipped to the lower band)
@@ -1665,6 +1759,7 @@ function drawFloor(){
   const g = ctx.createRadialGradient(pc.x,pc.y,0, pc.x,pc.y,110);
   g.addColorStop(0,'rgba(217,185,120,.12)'); g.addColorStop(1,'rgba(217,185,120,0)');
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(pc.x,pc.y,110,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
   ctx.restore();
 }
 function drawZoneRings(projMap){
