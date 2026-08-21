@@ -602,6 +602,33 @@ body{background:#0C0B08;color:var(--ink)}
   .topbar .right .hud-filter{min-width:40px;min-height:40px}
   .topbar .right .dash-btn{min-width:40px;min-height:40px}
 }
+/* ============================================================
+   v6.2: SPATIAL DECLUTTER — additive override; wins by source order.
+   A. FOCUS hud geometry (never clipped by the centered search bar
+      or the zoom-out button). B. Corner cluster grouped as
+      status | hairline | controls. C. Left rail decluttered.
+   ============================================================ */
+/* A. FOCUS hud — safe breathing room; hud-right wraps below the
+   centered search bar on narrower windows instead of sliding under it.
+   hud-tags stay single-line pills and wrap as whole units. */
+.scene-hud{left:20px;right:20px;gap:10px;row-gap:12px;flex-wrap:wrap;align-content:flex-start}
+.hud-right{flex-wrap:wrap;justify-content:flex-end;min-width:0;max-width:100%}
+.hud-tag{white-space:nowrap}
+@media (max-width:1400px){ .hud-right{flex:1 0 100%} }
+/* zoom-out moves below the hud rows so it never covers the FOCUS pill */
+.zoom-out{top:100px}
+/* B. Corner cluster — status group | hairline divider | controls group */
+.cluster-group{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.cluster-div{width:2px;height:20px;flex:0 0 auto;background:rgba(217,185,120,.18);border-radius:1px;align-self:center}
+.g-status .chip{font-size:9.5px;padding:4px 10px}
+.g-status .live{font-size:10px;gap:6px;letter-spacing:.1em}
+.g-controls .dash-btn{font-size:10px;padding:5px 10px}
+.g-controls .hud-filter{font-size:10px;padding:5px 10px}
+.g-controls .clock{margin-left:auto}
+/* on phones the status group hides (v6.1 hid chips+live); controls keep clock */
+@media (max-width:600px){ .topbar .right .g-status{display:none} }
+/* C. Left rail — directives/documents cards hidden (containers kept so
+   renderDirectives/renderDocuments JS and node-click access stay intact) */
 </style>
 </head>
 <body>
@@ -649,22 +676,23 @@ body{background:#0C0B08;color:var(--ink)}
       <div class="brand-text"><span class="name">A.T.R.I.U.M.</span><span class="tag">AI Operating System</span></div>
     </div>
     <div class="right">
-      <div class="chips" id="statusChips">
-        <span class="chip" id="chipCore"><span class="st"></span>CORE · <b>—</b></span>
-        <span class="chip" id="chipLink"><span class="st"></span>LINK · <b>—</b></span>
-        <span class="chip" id="chipRunner"><span class="st"></span>RUNNER · <b>—</b></span>
+      <div class="cluster-group g-status">
+        <span class="chip system" id="systemChip" title=""><span class="st"></span>SYSTEM · <b>—</b></span>
+        <span class="live" id="liveBadge"><span class="dot"></span><span id="liveText">Connecting…</span></span>
       </div>
-      <span class="live" id="liveBadge"><span class="dot"></span><span id="liveText">Connecting…</span></span>
-      <button class="dash-btn" id="dashBtn"><span class="fic">📊</span><span class="fl">Dashboard</span></button>
-      <button class="dash-btn" id="taskBtn"><span class="fic">⚡</span><span class="fl">Task</span></button>
-      <div class="hud-filters" id="hudFilters">
-        <button class="hud-filter active" data-filter="agents"><span class="fic">◉</span><span class="fl">Agents</span></button>
-        <button class="hud-filter" data-filter="chats"><span class="fic">💬</span><span class="fl">Chats</span></button>
-        <button class="hud-filter" data-filter="cron"><span class="fic">⏱</span><span class="fl">Cron</span></button>
-        <button class="hud-filter" data-filter="files"><span class="fic">📁</span><span class="fl">Files</span></button>
-        <button class="hud-filter" data-filter="memory"><span class="fic">🧠</span><span class="fl">Memory</span></button>
+      <span class="cluster-div" aria-hidden="true"></span>
+      <div class="cluster-group g-controls">
+        <button class="dash-btn" id="dashBtn"><span class="fic">📊</span><span class="fl">Dashboard</span></button>
+        <button class="dash-btn" id="taskBtn"><span class="fic">⚡</span><span class="fl">Task</span></button>
+        <div class="hud-filters" id="hudFilters">
+          <button class="hud-filter active" data-filter="agents"><span class="fic">◉</span><span class="fl">Agents</span></button>
+          <button class="hud-filter" data-filter="chats"><span class="fic">💬</span><span class="fl">Chats</span></button>
+          <button class="hud-filter" data-filter="cron"><span class="fic">⏱</span><span class="fl">Cron</span></button>
+          <button class="hud-filter" data-filter="files"><span class="fic">📁</span><span class="fl">Files</span></button>
+          <button class="hud-filter" data-filter="memory"><span class="fic">🧠</span><span class="fl">Memory</span></button>
+        </div>
+        <span class="clock" id="clock">—</span>
       </div>
-      <span class="clock" id="clock">—</span>
     </div>
   </header>
 
@@ -676,11 +704,11 @@ body{background:#0C0B08;color:var(--ink)}
       <div id="profileList" class="profile-list"></div>
       <div id="profileFocus" class="profile-focus" style="display:none"></div>
     </div>
-    <div class="directives">
+    <div class="directives" style="display:none">
       <div class="rail-sec"><span>Directives <b>TOP 3</b></span><span style="font-size:9px">board</span></div>
       <div id="directiveList"></div>
     </div>
-    <div class="documents">
+    <div class="documents" style="display:none">
       <div class="rail-sec"><span>Documents</span><span id="docCount" style="font-size:9px">—</span></div>
       <div id="documentList"></div>
     </div>
@@ -713,6 +741,7 @@ body{background:#0C0B08;color:var(--ink)}
         <span class="hud-tag">Knowledge graph · <b id="hudLive">live</b></span>
         <span class="hud-right">
           <span class="hud-tag" id="hudFocus">focus: <b>all</b></span>
+          <span class="hud-tag" id="hudRate" hidden>—</span>
         </span>
       </div>
       <div class="orbit-search" id="orbitSearch">
@@ -837,6 +866,10 @@ function updateLiveBadge(ok){
     : 'Offline';
   updateStatusChips(ok);
 }
+function setFocusTag(html, rate){
+  const hf = $('#hudFocus'); if(hf) hf.innerHTML = html;
+  const hr = $('#hudRate'); if(hr){ if(rate){ hr.hidden = false; hr.innerHTML = '<b>'+esc(rate)+'</b>'; } else { hr.hidden = true; } }
+}
 
 /* ============================================================
    KNOWLEDGE GRAPH (real nodes + edges)
@@ -885,7 +918,7 @@ function applyState(){
   $('#chatCount').textContent = chatCount();
   $('#cronCount').textContent = (STATE.cron||[]).length;
   $('#hudLive').textContent = nodes.length + ' nodes · ' + G.edges.length + ' links';
-  if(!selected.id) $('#hudFocus').innerHTML = 'focus: <b>'+orbitFilter+'</b>';
+  if(!selected.id) setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
   if(!selected.id || !nodeMap[selected.id]){
     // keep the cinematic spaceship default view; do not auto-select a node at boot
     renderRight(null);
@@ -1223,7 +1256,7 @@ function selectNode(id){
   const Z = isReadableNode(n) ? 1.35 : 1.85;
   cam.tz = Z; cam.ttx = -p.x*s0*Z; cam.tty = -p.y*s0*Z;
   $('#zoomOut').hidden = false;
-  $('#hudFocus').innerHTML = 'focus: <b>'+ (n?n.name:'') +'</b>';
+  setFocusTag('focus: <b>'+ (n?n.name:'') +'</b>', (n && n.type==='agent') ? n.rate : null);
   if(isReadableNode(n)){ populateBrief(n); $('#briefPanel').classList.add('show'); }
   else { $('#briefPanel').classList.remove('show'); }
   if(n){ n.activity = 1; flashes.push({x:project(p.x,p.y,p.z).x, y:project(p.x,p.y,p.z).y-22, text:n.name, ttl:1.6}); }
@@ -1234,7 +1267,7 @@ function deselectNode(){
   cam.tz = 0.45; cam.ttx = 0; cam.tty = 0;
   $('#briefPanel').classList.remove('show');
   $('#zoomOut').hidden = true;
-  $('#hudFocus').innerHTML = 'focus: <b>'+orbitFilter+'</b>';
+  setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
   renderAgents(); renderRight(null);
 }
 function computeFocus(){
@@ -2082,12 +2115,14 @@ function renderProfiles(){
         rateCell+
       '</div>'+
       ((a.skills && a.skills.length)?'<div class="pf-skills">'+a.skills.slice(0,8).map(s=>'<span>'+esc(s)+'</span>').join('')+'</div>':'');
+    setFocusTag('focus: <b>'+esc(a.name)+'</b>', a.rate);
     const back = $('#profileBack');
     if(back) back.onclick = ()=>{ selectedProfile = null; renderProfiles(); };
     return;
   }
   list.style.display = '';
   focus.style.display = 'none';
+  setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
   if(!agents.length){ list.innerHTML = '<div class="empty">No agents loaded.</div>'; return; }
   list.innerHTML = agents.map(a=>{
     const busy = !!((STATE.activity||{})[a.id]);
@@ -2154,15 +2189,17 @@ function renderMemoryBrief(){
 function updateStatusChips(ok){
   const v = STATE.vitals || {};
   const relayOk = !!(STATE.relay && (STATE.relay.vps || STATE.relay.local));
-  const chip = (id, label, good, warn)=>{
-    const el = $(id); if(!el) return;
-    el.className = 'chip ' + (good ? 'ok' : (warn ? 'warn' : ''));
-    el.innerHTML = '<span class="st"></span>'+label+' · <b>'+ (good ? 'OK' : (warn ? 'SLOW' : 'DOWN')) +'</b>';
-  };
-  chip('#chipCore', 'CORE', ok, false);
-  chip('#chipLink', 'LINK', relayOk, !!(STATE.relay && STATE.relay.local));
+  const sOf = (good, warn)=> good ? 'OK' : (warn ? 'SLOW' : 'DOWN');
+  const coreS = sOf(ok, false);
+  const linkS = sOf(relayOk, !!(STATE.relay && STATE.relay.local));
   const runner = (v.velocity_day||0) > 0 || ((v.uptime_s||0) > 0);
-  chip('#chipRunner', 'RUNNER', runner, false);
+  const runnerS = sOf(runner, false);
+  const rank = s => s==='DOWN' ? 2 : s==='SLOW' ? 1 : 0;
+  const worst = [coreS, linkS, runnerS].sort((a,b)=>rank(b)-rank(a))[0];
+  const el = $('#systemChip'); if(!el) return;
+  el.className = 'chip system ' + (worst==='OK' ? 'ok' : worst==='SLOW' ? 'warn' : '');
+  el.innerHTML = '<span class="st"></span>SYSTEM · <b>'+worst+'</b>';
+  el.title = 'CORE · '+coreS+' · LINK · '+linkS+' · RUNNER · '+runnerS;
 }
 function fmtUptime(s){
   if(!s) return '—';
@@ -2357,7 +2394,7 @@ function setOrbitFilter(f){
   document.querySelectorAll('.tab').forEach(x=> x.classList.toggle('active', x.dataset.tab===f));
   document.querySelectorAll('.panel').forEach(p=>{ p.hidden = (p.id !== 'panel-'+f); });
   deselectNode();
-  $('#hudFocus').innerHTML = 'focus: <b>'+f+'</b>';
+  setFocusTag('focus: <b>'+f+'</b>', null);
 }
 document.querySelectorAll('.tab').forEach(t=>{
   t.addEventListener('click', ()=>{ setOrbitFilter(t.dataset.tab); });
