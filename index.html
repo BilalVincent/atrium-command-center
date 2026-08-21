@@ -418,6 +418,86 @@ body{background:#0C0B08;color:var(--ink)}
 .hud-filter{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--gold-pale);background:rgba(12,11,8,.6);border:1px solid rgba(176,141,87,.35);border-radius:999px;padding:5px 12px;backdrop-filter:blur(4px);cursor:pointer;user-select:none;transition:all .15s ease;font-family:inherit;line-height:1}
 .hud-filter:hover{background:rgba(176,141,87,.25);color:var(--gold-bright);border-color:rgba(176,141,87,.65)}
 .hud-filter.active{background:var(--gold);color:#14110D;border-color:var(--gold)}
+/* ============================================================
+   v6: GLASS-MORPHIC OS CHROME — corner fix + glass panels
+   (additive override; wins by source order — do not edit above)
+   ============================================================ */
+/* 1) TOPBAR CORNER CLUSTER — the generic .right sidebar rule was
+   leaking flex-direction:column into .topbar .right (CSS specificity
+   collision, Vincent's screenshot: DASHBOARD/TASK/clock stacked).
+   Force an explicit horizontal row. */
+.topbar .right{flex-direction:row;flex-wrap:wrap;justify-content:flex-end;gap:10px}
+
+/* 2) GLASS RECIPE (proven in orbit-os-glass-concept.html):
+   background rgba(250,247,240,.055) · blur(22px) saturate(150%)
+   · border 1px rgba(217,185,120,.22) · radius 22px
+   · shadow 0 18px 50px rgba(0,0,0,.42) + inset highlight.
+   Applied to every side widget / popup / modal. */
+.glass,
+.profiles, .directives, .documents, .calendar,
+.right,
+.legend, .search-dropdown, .brief, .guide{
+  background:rgba(250,247,240,.055);
+  backdrop-filter:blur(22px) saturate(150%);
+  -webkit-backdrop-filter:blur(22px) saturate(150%);
+  border:1px solid rgba(217,185,120,.22);
+  border-radius:22px;
+  box-shadow:0 18px 50px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.07);
+}
+
+/* 3) LEFT RAIL — sections become floating glass cards; the rail
+   scrolls as one unit (left-scroll) while the calendar stays
+   docked bottom-left (never scrolls, per Vincent). */
+.left-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;padding-bottom:2px}
+.profiles{margin:10px 10px 2px;padding:12px 12px 6px;flex:0 0 auto}
+.directives{margin:6px 10px 2px;padding:12px 12px 6px;flex:0 0 auto}
+.documents{margin:6px 10px 2px;padding:12px 12px 6px;flex:0 0 auto;max-height:170px;overflow-y:auto}
+.calendar{margin:10px;width:auto;border-top:none;flex:0 0 auto}
+/* right review panel floats as a glass card (grid inset) */
+.right{margin:10px 10px 10px 0}
+
+/* 4) AGENT PROFILES rail — head-shot list + focused profile KPIs */
+.profile-list{display:flex;flex-direction:column;gap:3px}
+.prof{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:4px 6px;border:1px solid transparent;border-radius:12px;background:none;cursor:pointer;transition:background .12s ease}
+.prof:hover{background:rgba(232,207,160,.08)}
+.prof.active{background:rgba(176,141,87,.18);border-color:var(--gold)}
+.p-av{width:30px;height:30px;border-radius:50%;flex:0 0 auto;overflow:hidden;position:relative;border:1px solid rgba(217,185,120,.35);background:rgba(176,141,87,.15)}
+.p-av img,.p-av .duo{width:100%;height:100%;display:block}
+.p-av .duo{display:flex}
+.p-av .duo img{width:50%;height:100%;object-fit:cover}
+.p-av .p-init{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-weight:800;font-size:11px;color:#14110D}
+.p-meta{flex:1 1 auto;min-width:0}
+.p-nm{font-size:12px;font-weight:700;line-height:1.2;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-rl{font-size:9.5px;color:var(--ink-mute);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-st{width:8px;height:8px;border-radius:50%;flex:0 0 auto;background:#8A8272}
+.p-st.busy{background:var(--gold);box-shadow:0 0 6px var(--gold-glow);animation:dotPulse 1s ease-in-out infinite}
+.p-st.idle{background:var(--ok)}
+/* focused profile card */
+.profile-focus{animation:briefIn .25s ease}
+.pf-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.pf-av{width:58px;height:58px;border-radius:50%;overflow:hidden;flex:0 0 auto;border:2px solid rgba(217,185,120,.45);background:rgba(176,141,87,.15);box-shadow:0 6px 18px rgba(0,0,0,.35)}
+.pf-av img,.pf-av .duo{width:100%;height:100%;display:block}
+.pf-av .duo{display:flex}
+.pf-av .duo img{width:50%;height:100%;object-fit:cover}
+.pf-av .p-init{display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-weight:800;font-size:20px;color:#14110D}
+.pf-meta{flex:1 1 auto;min-width:0}
+.pf-nm{font-size:14px;font-weight:800;display:block;line-height:1.2}
+.pf-rl{font-size:10px;color:var(--ink-mute);display:block;margin-top:2px}
+.pf-back{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--gold-bright);background:rgba(176,141,87,.18);border:1px solid rgba(217,185,120,.4);border-radius:999px;padding:5px 10px;cursor:pointer;flex:0 0 auto}
+.pf-back:hover{background:var(--gold);color:#14110D}
+.pf-kpis{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.pf-kpi{background:rgba(12,11,8,.5);border:1px solid rgba(217,185,120,.18);border-radius:10px;padding:7px 9px}
+.pf-kpi .pk{font-size:8px;letter-spacing:.1em;color:var(--ink-mute);font-weight:800;text-transform:uppercase}
+.pf-kpi .pv{font-size:15px;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;margin-top:2px;line-height:1.1}
+.pf-skills{display:flex;flex-wrap:wrap;gap:4px}
+.pf-skills span{font-size:8.5px;font-weight:700;color:var(--gold-bright);background:rgba(176,141,87,.15);border:1px solid rgba(217,185,120,.25);border-radius:999px;padding:2px 7px}
+
+/* 5) full-screen modals — frosted glass over the orbit */
+#dashboard,#taskModal{background:rgba(12,11,8,.55);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%)}
+
+/* 6) filter pills (relocated into the topbar corner cluster) — glass */
+.hud-filters{pointer-events:auto}
+.hud-filter{background:rgba(250,247,240,.055);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(217,185,120,.22)}
 </style>
 </head>
 <body>
@@ -470,14 +550,23 @@ body{background:#0C0B08;color:var(--ink)}
       <span class="live" id="liveBadge"><span class="dot"></span><span id="liveText">Connecting…</span></span>
       <button class="dash-btn" id="dashBtn">📊 Dashboard</button>
       <button class="dash-btn" id="taskBtn">⚡ Task</button>
+      <div class="hud-filters" id="hudFilters">
+        <button class="hud-filter active" data-filter="agents">◉ Agents</button>
+        <button class="hud-filter" data-filter="chats">💬 Chats</button>
+        <button class="hud-filter" data-filter="cron">⏱ Cron</button>
+        <button class="hud-filter" data-filter="files">📁 Files</button>
+        <button class="hud-filter" data-filter="memory">🧠 Memory</button>
+      </div>
       <span class="clock" id="clock">—</span>
     </div>
   </header>
 
   <aside class="left">
-    <div class="vitals">
-      <div class="rail-sec"><span>System Vitals <b>/ MEMORY.LIVE</b></span></div>
-      <div class="vital-grid" id="vitalGrid"></div>
+    <div class="left-scroll">
+    <div class="profiles">
+      <div class="rail-sec"><span>Agent <b>Profiles</b></span><span style="font-size:9px" id="profileMeta">—</span></div>
+      <div id="profileList" class="profile-list"></div>
+      <div id="profileFocus" class="profile-focus" style="display:none"></div>
     </div>
     <div class="directives">
       <div class="rail-sec"><span>Directives <b>TOP 3</b></span><span style="font-size:9px">board</span></div>
@@ -505,6 +594,7 @@ body{background:#0C0B08;color:var(--ink)}
       <div class="zone-filters" id="zoneFilters"></div>
       <div class="panel-list" id="memoryList"></div>
     </div>
+    </div>
     <div class="calendar" id="calendar"></div>
   </aside>
 
@@ -515,13 +605,6 @@ body{background:#0C0B08;color:var(--ink)}
         <span class="hud-tag">Knowledge graph · <b id="hudLive">live</b></span>
         <span class="hud-right">
           <span class="hud-tag" id="hudFocus">focus: <b>all</b></span>
-          <div class="hud-filters" id="hudFilters">
-            <button class="hud-filter active" data-filter="agents">Agents</button>
-            <button class="hud-filter" data-filter="chats">Chats</button>
-            <button class="hud-filter" data-filter="cron">Cron</button>
-            <button class="hud-filter" data-filter="files">Files</button>
-            <button class="hud-filter" data-filter="memory">Memory</button>
-          </div>
         </span>
       </div>
       <div class="orbit-search" id="orbitSearch">
@@ -1835,6 +1918,80 @@ function renderVitals(){
   }).join('');
   grid.querySelectorAll('canvas').forEach(cv=>{ drawMiniSpark(cv, vitalActivity(cv.dataset.zone), zoneColor(cv.dataset.zone)); });
 }
+/* ============================================================
+   AGENT PROFILES RAIL (v6) — head-shot list + focused profile KPIs.
+   Clicking a head-shot focuses the section on that agent (large
+   head-shot + real KPIs: files owned, last activity, touched-48h,
+   rate/skills). Clicking the same head-shot again or "← all"
+   deselects and shows every head-shot.
+   ============================================================ */
+let selectedProfile = null;            // agent id; null = show all head-shots
+const PROFILE_PORTRAIT_IDS = ['amara','thabo','liam','naledi','marcus','reception'];
+function profileFaceHtml(a, cls){
+  const c = cls || 'p-av';
+  if(a && a.id === 'duo'){
+    return '<span class="'+c+'"><span class="duo"><img src="assets/portraits/duo_coder_avatar_512.png" alt="Sipho" loading="lazy"><img src="assets/portraits/duo_creator_avatar_512.png" alt="Lerato" loading="lazy"></span></span>';
+  }
+  if(a && a.id && PROFILE_PORTRAIT_IDS.indexOf(a.id) >= 0){
+    return '<span class="'+c+'"><img src="assets/portraits/'+esc(a.id)+'_avatar_512.png" alt="'+esc(a.name)+'" loading="lazy"></span>';
+  }
+  return '<span class="'+c+'"><span class="p-init">'+initials(a && a.name)+'</span></span>';
+}
+function profileStats(a){
+  const files = (STATE.files||[]).filter(f=>f.owner===a.id);
+  const act = (STATE.activity||{})[a.id];
+  const last = (STATE.recent||[]).find(r=>r.owner===a.id);
+  return {
+    files: files.length,
+    last: (act && act.files && act.files[0] && act.files[0].ago) || (last && last.ago) || '—',
+    touched: act ? act.count : 0,
+    skills: (a.skills||[]).length,
+    rate: a.rate || ''
+  };
+}
+function renderProfiles(){
+  const list = $('#profileList'); const focus = $('#profileFocus');
+  if(!list || !focus) return;
+  const agents = STATE.agents || [];
+  const meta = $('#profileMeta'); if(meta) meta.textContent = agents.length + ' agents';
+  if(selectedProfile){
+    const a = agents.find(x=>x.id===selectedProfile);
+    if(!a){ selectedProfile = null; renderProfiles(); return; }
+    list.style.display = 'none';
+    focus.style.display = '';
+    const st = profileStats(a);
+    const rateCell = st.rate
+      ? '<div class="pf-kpi"><div class="pk">Rate</div><div class="pv">'+esc(st.rate)+'</div></div>'
+      : '<div class="pf-kpi"><div class="pk">Skills</div><div class="pv">'+st.skills+'</div></div>';
+    focus.innerHTML =
+      '<div class="pf-head">'+profileFaceHtml(a,'pf-av')+
+        '<span class="pf-meta"><span class="pf-nm">'+esc(a.name)+'</span><span class="pf-rl">'+esc(a.role)+'</span></span>'+
+        '<button class="pf-back" id="profileBack" title="Show all head-shots">← all</button></div>'+
+      '<div class="pf-kpis">'+
+        '<div class="pf-kpi"><div class="pk">Files owned</div><div class="pv">'+st.files+'</div></div>'+
+        '<div class="pf-kpi"><div class="pk">Last activity</div><div class="pv">'+esc(st.last)+'</div></div>'+
+        '<div class="pf-kpi"><div class="pk">Touched · 48h</div><div class="pv">'+st.touched+'</div></div>'+
+        rateCell+
+      '</div>'+
+      ((a.skills && a.skills.length)?'<div class="pf-skills">'+a.skills.slice(0,8).map(s=>'<span>'+esc(s)+'</span>').join('')+'</div>':'');
+    const back = $('#profileBack');
+    if(back) back.onclick = ()=>{ selectedProfile = null; renderProfiles(); };
+    return;
+  }
+  list.style.display = '';
+  focus.style.display = 'none';
+  if(!agents.length){ list.innerHTML = '<div class="empty">No agents loaded.</div>'; return; }
+  list.innerHTML = agents.map(a=>{
+    const busy = !!((STATE.activity||{})[a.id]);
+    return '<button class="prof" data-id="'+esc(a.id)+'">'+
+      profileFaceHtml(a)+
+      '<span class="p-meta"><span class="p-nm">'+esc(a.name)+'</span><span class="p-rl">'+esc(a.role)+'</span></span>'+
+      '<span class="p-st '+(busy?'busy':'idle')+'" title="'+(busy?'working':'standing by')+'"></span></button>';
+  }).join('');
+  list.querySelectorAll('.prof').forEach(row=>{
+    row.onclick = ()=>{ selectedProfile = row.dataset.id; renderProfiles(); };
+  });
+}
 function renderDirectives(){
   const el = $('#directiveList'); if(!el) return;
   const items = STATE.directives || [];
@@ -1915,7 +2072,7 @@ function fmtWhen(ts){
   return Math.floor(s/86400)+'d ago';
 }
 function applyMemoryState(){
-  renderVitals(); renderDirectives(); renderDocuments(); renderLegend(); renderMemoryBrief();
+  renderProfiles(); renderDirectives(); renderDocuments(); renderLegend(); renderMemoryBrief();
   const mem = STATE.memory || {};
   $('#memCount').textContent = mem.total || 0;
 }
