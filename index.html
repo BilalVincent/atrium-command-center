@@ -759,19 +759,32 @@ function computeLayout(){
     else if(n.type==='memory'){ (byZone[n.zone]=byZone[n.zone]||[]).push(n); }
   });
   const clusters = [];
-  clusters.push({ id:'core:agents',   radius: 90,  members: uniq.filter(n=>n.type==='agent') });
-  clusters.push({ id:'core:profiles', radius: 120, members: uniq.filter(n=>n.type==='profile') });
-  Object.keys(byOwner).sort().forEach(o=> clusters.push({ id:'files:'+o, radius: 300, members: byOwner[o] }));
-  Object.keys(byZone).sort().forEach(z=> clusters.push({ id:'mem:'+z,    radius: 300, members: byZone[z] }));
+  clusters.push({ id:'core:agents',   base: 70,  members: uniq.filter(n=>n.type==='agent') });
+  clusters.push({ id:'core:profiles', base: 95,  members: uniq.filter(n=>n.type==='profile') });
+  Object.keys(byOwner).sort().forEach(o=> clusters.push({ id:'files:'+o, base: 220, members: byOwner[o] }));
+  Object.keys(byZone).sort().forEach(z=> clusters.push({ id:'mem:'+z,    base: 220, members: byZone[z] }));
   const bySkillProfile = {};
   uniq.forEach(n=>{ if(n.type==='skill'){ (bySkillProfile[n.profile||'shared']=bySkillProfile[n.profile||'shared']||[]).push(n); } });
-  Object.keys(bySkillProfile).sort().forEach(p=> clusters.push({ id:'skills:'+p, radius: 520, members: bySkillProfile[p] }));
-  clusters.push({ id:'conversations', radius: 520, members: uniq.filter(n=>n.type==='conversation') });
-  clusters.push({ id:'cron',          radius: 520, members: uniq.filter(n=>n.type==='cron') });
+  Object.keys(bySkillProfile).sort().forEach(p=> clusters.push({ id:'skills:'+p, base: 380, members: bySkillProfile[p] }));
+  clusters.push({ id:'conversations', base: 380, members: uniq.filter(n=>n.type==='conversation') });
+  clusters.push({ id:'cron',          base: 380, members: uniq.filter(n=>n.type==='cron') });
   const assigned = new Set(); clusters.forEach(c=>c.members.forEach(n=>assigned.add(n.id)));
   const misc = uniq.filter(n=>!assigned.has(n.id));
-  if(misc.length) clusters.push({ id:'misc', radius: 220, members: misc });
+  if(misc.length) clusters.push({ id:'misc', base: 160, members: misc });
   clusters.forEach(c=> c.members.sort((a,b)=> a.id<b.id?-1:1));   // deterministic member order
+  // ---- v5.1: SPACE-AWARE RADII (preserve room as the system grows) ----
+  // 1. Cluster radius grows with member count (area-proportional: sqrt(n))
+  //    so a 500-member skills cluster gets a much bigger volume than a 7-member one.
+  //    base + 12*sqrt(n) is calibrated so CURRENT counts reproduce the approved v5
+  //    shells (~90 core / ~300 files+memory / ~520 skills+convs+cron).
+  clusters.forEach(c=>{ c.radius = c.base + 12*Math.sqrt(Math.max(1, c.members.length)); });
+  // 2. The placement sphere GROWS with cluster count so new clusters never cram
+  //    the same shell: at the current 24 clusters the factor is 1.0 (no visual
+  //    change vs approved v5); at 48 clusters it reaches ~1.32, at 96 ~1.74.
+  //    Centroid lock (step 5) keeps the whole thing centered on the floor origin
+  //    no matter how large the volume gets.
+  const SHELL_REF = 24;
+  const shellGrowth = Math.pow(Math.max(clusters.length, 4) / SHELL_REF, 0.4);
 
   // ---- 2. cluster centers on the Fibonacci sphere ----
   // Deterministic order: largest clusters first (tiebreak by id), then
@@ -782,7 +795,7 @@ function computeLayout(){
   clusters.sort((a,b)=> (b.members.length - a.members.length) || (a.id<b.id?-1:1));
   const N2 = Math.ceil(clusters.length/2);
   clusters.forEach((c,i)=>{
-    const p = fibSphere(Math.floor(i/2), N2, c.radius);
+    const p = fibSphere(Math.floor(i/2), N2, c.radius * shellGrowth);
     const flip = (i%2===1) ? -1 : 1;
     c.center = { x: p.x*flip, y: p.y*flip, z: p.z*flip };
   });
