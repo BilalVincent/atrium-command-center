@@ -682,6 +682,26 @@ body{background:#0C0B08;color:var(--ink)}
 @media (max-width:600px){
   .topbar .right{padding:5px 10px;gap:8px}
 }
+/* ============================================================
+   v6.6.5: SEARCH BAR → TOPBAR HEADER — Vincent 2026-08-22:
+   "move the search bar to the top section or header section to
+   fill the empty space on top". The orbit-search now lives in
+   .topbar between the brand and the controls cluster, centered
+   in the empty middle space. Dropdown opens downward over the
+   scene as before. Mobile (≤600px): topbar is a wrap container,
+   so the search floats fixed just under the header row instead
+   of squeezing the corner cluster.
+   ============================================================ */
+.topbar{gap:16px}
+.orbit-search{position:relative;top:auto;left:auto;transform:none;flex:1 1 auto;max-width:520px;min-width:0;display:flex;justify-content:center}
+.orbit-search .os-wrap{width:min(420px,100%)}
+.orbit-search input{width:100%;max-width:none}
+.search-dropdown{left:50%;transform:translateX(-50%);width:min(460px,92vw)}
+@media (max-width:600px){
+  .topbar{flex-wrap:wrap;height:auto}
+  .orbit-search{position:fixed;top:56px;left:10px;right:10px;z-index:60;flex:0 0 auto;transform:none}
+  .search-dropdown{position:fixed;top:104px;left:12px;right:12px;width:auto;transform:none}
+}
 </style>
 </head>
 <body>
@@ -727,6 +747,13 @@ body{background:#0C0B08;color:var(--ink)}
       <button class="menu-btn" id="menuBtn" aria-label="Open menu">☰</button>
       <span class="mark">A</span>
       <div class="brand-text"><span class="name">A.T.R.I.U.M.</span><span class="tag">AI Operating System</span></div>
+    </div>
+    <div class="orbit-search" id="orbitSearch">
+      <div class="os-wrap">
+        <span class="os-ic">⌕</span>
+        <input id="orbitSearchInput" placeholder="Search memory…" autocomplete="off">
+      </div>
+      <div class="search-dropdown" id="searchDropdown"></div>
     </div>
     <div class="right">
       <div class="cluster-group g-status">
@@ -778,13 +805,6 @@ body{background:#0C0B08;color:var(--ink)}
           <span class="hud-tag" id="hudFocus">focus: <b>all</b></span>
           <span class="hud-tag" id="hudRate" hidden>—</span>
         </span>
-      </div>
-      <div class="orbit-search" id="orbitSearch">
-        <div class="os-wrap">
-          <span class="os-ic">⌕</span>
-          <input id="orbitSearchInput" placeholder="Search memory…" autocomplete="off">
-        </div>
-        <div class="search-dropdown" id="searchDropdown"></div>
       </div>
       <div class="scene-tip" id="sceneTip">Drag to rotate · scroll to zoom · click a memory node to read</div>
       <button class="zoom-out" id="zoomOut" hidden>⌕ Zoom out</button>
@@ -1658,9 +1678,17 @@ function renderRightStable(n){
   rb.querySelectorAll('.mprev').forEach(el=>saves.push(el.scrollTop));
   renderRight(n);
   lastRightSig=sig;
-  rb.scrollTop=saves[0];
-  let _i=1;
-  rb.querySelectorAll('.mprev').forEach(el=>{ el.scrollTop=saves[_i]||0; _i++; });
+  // Stash saved positions; re-applied immediately (best effort) AND again when
+  // the async /read|/conv|SKILL.md preview finishes populating (ccApplySaved),
+  // because at innerHTML-replace time the panel is still short ("Loading...")
+  // and the browser clamps scrollTop to 0 before the content arrives.
+  window.__ccSaved = { id:n.id, body:saves[0], prev:saves[1]||0 };
+  ccApplySaved(n.id);
+}
+function ccApplySaved(id){
+  const sv = window.__ccSaved; if(!sv || sv.id!==id) return;
+  const rb=$('#rightBody'); if(rb) rb.scrollTop=sv.body;
+  const pv=$('#memPrev')||$('#skillPrev')||$('#convPrev'); if(pv) pv.scrollTop=sv.prev;
 }
 function renderRight(n){
   const rn=$('#rName'), rro=$('#rRole'), rs=$('#rState'), ro=$('#rOrb'), rb=$('#rightBody');
@@ -1745,6 +1773,7 @@ function renderConversationRight(n){
       return who+': '+(m.content||'').replace(/\n+/g,' ');
     }).slice(-12).join('\n');
     pv.innerHTML = '<span class="mp-title">'+esc(d.name||n.name)+'</span>\n'+esc(lines||'(empty transcript)');
+    if(typeof ccApplySaved==='function') ccApplySaved(n.id);
   }).catch(()=>{ const pv=$('#convPrev'); if(pv) pv.textContent='Could not load transcript.'; });
 }
 function renderSkillRight(n){
@@ -1764,6 +1793,7 @@ function renderSkillRight(n){
     const pv = $('#skillPrev'); if(!pv) return;
     if(d.binary){ pv.textContent = '(binary)'; return; }
     pv.textContent = (d.text||'').split('\n').slice(0,40).join('\n') || '(empty)';
+    if(typeof ccApplySaved==='function') ccApplySaved(n.id);
   }).catch(()=>{ const pv=$('#skillPrev'); if(pv) pv.textContent='Could not load.'; });
 }
 function renderProfileRight(n){
@@ -2484,6 +2514,7 @@ function renderMemoryRight(n){
     if(d.binary){ pv.innerHTML = '<span class="mp-title">'+esc(n.name)+'</span>\n(binary file — click Open to view)'; return; }
     const lines = (d.text||'').split('\n').slice(0,60).join('\n');
     pv.innerHTML = '<span class="mp-title">'+esc(n.name)+'</span>\n'+esc(lines||'(empty)');
+    if(typeof ccApplySaved==='function') ccApplySaved(n.id);
   }).catch(()=>{ const pv=$('#memPrev'); if(pv) pv.textContent = 'Could not load preview.'; });
 }
 
