@@ -2223,6 +2223,12 @@ function renderLegend(){
 }
 function renderMemoryBrief(){
   const el = $('#briefBody'); if(!el) return;
+  // v6.6.1 fix: fetchState polls every 8s -> refreshState -> applyMemoryState,
+  // which used to rewrite #briefBody back to the wiki/run digest and clobber
+  // whatever node brief was open. Skip the auto digest while a readable node
+  // is selected — its brief owns the panel until deselected/closed.
+  const sel = (typeof selected !== 'undefined' && selected.id) ? nodeMap[selected.id] : null;
+  if(sel && isReadableNode(sel)) return;
   const mem = STATE.memory || {}; const b = mem.brief || {};
   let html = '';
   if(b.wiki){
