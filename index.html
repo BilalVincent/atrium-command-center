@@ -432,8 +432,12 @@ body{background:#0C0B08;color:var(--ink)}
 /* 3) LEFT RAIL — sections become floating glass cards; the rail
    scrolls as one unit (left-scroll) while the calendar stays
    docked bottom-left (never scrolls, per Vincent). */
-.left-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;padding-bottom:2px}
-.profiles{margin:10px 10px 2px;padding:12px 12px 6px;flex:0 0 auto}
+.left-scroll{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column;padding-bottom:2px}
+/* v6.5.1 RAIL FIT — no scrolling anywhere at target sizes:
+   the profiles card flexes to absorb leftover height; its list
+   scrolls internally ONLY if agents ever outnumber the space;
+   the calendar stays docked bottom-left and never moves. */
+.profiles{margin:8px 10px 2px;padding:9px 12px 5px;flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .directives{margin:6px 10px 2px;padding:12px 12px 6px;flex:0 0 auto}
 .documents{margin:6px 10px 2px;padding:12px 12px 6px;flex:0 0 auto;max-height:170px;overflow-y:auto}
 .calendar{margin:10px;width:auto;border-top:none;flex:0 0 auto}
@@ -441,7 +445,7 @@ body{background:#0C0B08;color:var(--ink)}
 .right{margin:10px 10px 10px 0}
 
 /* 4) AGENT PROFILES rail — head-shot list + focused profile KPIs */
-.profile-list{display:flex;flex-direction:column;gap:3px}
+.profile-list{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:3px}
 .prof{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:4px 6px;border:1px solid transparent;border-radius:12px;background:none;cursor:pointer;transition:background .12s ease}
 .prof:hover{background:rgba(232,207,160,.08)}
 .prof.active{background:rgba(176,141,87,.18);border-color:var(--gold)}
@@ -457,7 +461,28 @@ body{background:#0C0B08;color:var(--ink)}
 .p-st.busy{background:var(--gold);box-shadow:0 0 6px var(--gold-glow);animation:dotPulse 1s ease-in-out infinite}
 .p-st.idle{background:var(--ok)}
 /* focused profile card */
-.profile-focus{animation:briefIn .25s ease}
+.profile-focus{animation:briefIn .25s ease;min-height:0;overflow-y:auto}
+.profiles .rail-sec{flex:0 0 auto}
+
+/* v6.5.1 COMPACT TIER — shorter viewports (~700–900px tall):
+   tighten rail rhythm so ALL sections fit with no scrolling —
+   full 7-agent list, filter row, calendar all visible. */
+@media (max-height:900px){
+  .prof{padding:3px 6px}
+  .p-av{width:26px;height:26px}
+  .profile-list{gap:2px}
+  .profiles{margin-top:6px;padding-top:7px}
+  .zone-filters{margin:5px 10px 0}
+  .calendar{margin:8px 10px;padding:9px 12px 10px}
+  .cal-grid .day{padding:2px 0}
+  .cal-events{margin-top:5px;padding-top:5px}
+  .cal-events .ev{padding:1px 0}
+}
+@media (max-height:780px){
+  .prof{padding:2px 6px}
+  .profile-list{gap:1px}
+  .calendar .cal-head{margin-bottom:5px}
+}
 .pf-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .pf-av{width:58px;height:58px;border-radius:50%;overflow:hidden;flex:0 0 auto;border:2px solid rgba(217,185,120,.45);background:rgba(176,141,87,.15);box-shadow:0 6px 18px rgba(0,0,0,.35)}
 .pf-av img,.pf-av .duo{width:100%;height:100%;display:block}
@@ -493,9 +518,14 @@ body{background:#0C0B08;color:var(--ink)}
 @media (max-width:600px){ .topbar .right .g-status{display:none} }
 
 /* 6) filter pills — back in the LEFT RAIL above the calendar
-   (between profiles and calendar, as originally briefed) */
+   (between profiles and calendar, as originally briefed).
+   v6.5.1: exact v5.1 pill recipe restored ("the old buttons were
+   perfect") — crisp high-contrast gold-on-dark, icons kept. */
 .hud-filters{pointer-events:auto}
-.hud-filter{background:rgba(250,247,240,.055);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(217,185,120,.22)}
+.hud-filter{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:#E7DAC2;background:rgba(12,11,8,.6);border:1px solid rgba(176,141,87,.35);border-radius:999px;padding:5px 12px;backdrop-filter:blur(4px);cursor:pointer;user-select:none;transition:all .15s ease;font-family:inherit;line-height:1}
+.hud-filter:hover{background:rgba(176,141,87,.25);color:var(--gold-bright);border-color:rgba(176,141,87,.65)}
+.hud-filter.active{background:var(--gold);color:#14110D;border-color:var(--gold)}
+.hud-filter .fic{margin-right:4px}
 .zone-filters{display:flex;gap:5px;margin:8px 10px 2px;padding:0 2px;flex-wrap:wrap;flex:0 0 auto}
 
 /* ============================================================
@@ -522,7 +552,7 @@ body{background:#0C0B08;color:var(--ink)}
   .topbar .right .chip{padding:3px 8px;font-size:9px}
   .topbar .right .clock{margin-left:auto;font-size:11px}
 
-  .left-scroll{min-height:0;max-height:calc(100dvh - 200px)}
+  .left-scroll{min-height:0}
   .p-nm{font-size:10.5px}
   .p-rl{font-size:9px}
   .doc .dn{font-size:10.5px}
