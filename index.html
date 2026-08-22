@@ -122,6 +122,17 @@ canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touc
 .ghost-btn svg{width:34px;height:34px}
 @keyframes ghostHalo{0%,100%{box-shadow:0 0 0 0 var(--gold-glow),0 12px 28px rgba(0,0,0,.45)}50%{box-shadow:0 0 0 14px rgba(176,141,87,0),0 12px 28px rgba(0,0,0,.45)}}
 
+/* ============================================================
+   v6.6 MOTION DISCIPLINE — when you're focused on something the
+   ambient wallpaper goes quiet, so real signals stand out.
+   ============================================================ */
+.scene-wrap.focused .ghost-btn{animation-play-state:paused}
+
+/* v6.6 EMOJI → GOLD — tint platform emoji into the ink/gold family
+   (zero-effort monochrome until the SVG icon set lands). */
+.fic{filter:grayscale(1) sepia(1) saturate(2.6) hue-rotate(-12deg) brightness(1.15)}
+.hud-filter.active .fic{filter:grayscale(1) brightness(.3)} /* dark icon to match dark label on solid gold */
+
 .chat{flex:0 0 auto;height:min(40dvh,360px);min-height:190px;display:flex;flex-direction:column;background:var(--paper);border-top:1px solid var(--line)}
 .chat-head{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--line)}
 .chat-head .who{font-size:12.5px;font-weight:800;display:flex;align-items:center;gap:8px}
@@ -548,7 +559,6 @@ body{background:#0C0B08;color:var(--ink)}
   .topbar{padding:6px 10px}
   .topbar .right{gap:6px;padding:0 6px;flex-wrap:wrap;justify-content:flex-end}
   .topbar .right .dash-btn{padding:6px 10px;font-size:10px}
-  .topbar .right .hud-filter{padding:6px 10px;font-size:10px}
   .topbar .right .chip{padding:3px 8px;font-size:9px}
   .topbar .right .clock{margin-left:auto;font-size:11px}
 
@@ -584,8 +594,6 @@ body{background:#0C0B08;color:var(--ink)}
   .topbar .right .chips{display:none}
   .topbar .right .live{display:none}
   .topbar .right .dash-btn{min-height:40px;padding:5px 8px;font-size:10px}
-  .topbar .right .hud-filters{flex-wrap:wrap}
-  .topbar .right .hud-filter{min-height:40px;padding:5px 8px;font-size:10px}
   .topbar .right .clock{font-size:10px}
 
   /* center — full width, orbit visible */
@@ -622,14 +630,12 @@ body{background:#0C0B08;color:var(--ink)}
 /* A2 note — hide pill/dash text labels below 480px (icons stay, aria-label retained) */
 @media (max-width:480px){
   .topbar .right .fl{display:none}
-  .topbar .right .hud-filter{min-width:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px}
   .topbar .right .dash-btn{min-width:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:13px}
 }
 
 /* A3 — small phone ≤420px */
 @media (max-width:420px){
   .left{width:260px;max-width:84vw}
-  .topbar .right .hud-filter{min-width:40px;min-height:40px}
   .topbar .right .dash-btn{min-width:40px;min-height:40px}
 }
 /* ============================================================
@@ -1246,6 +1252,7 @@ function selectNode(id){
   const prev = selected.id;
   if(prev && prev===id){ deselectNode(); return; }
   selected.id = id;
+  wrap.classList.add('focused');   // v6.6: attention-gated motion — ambient goes quiet
   const n = nodeMap[id];
   if(n && n.type==='agent') setGhostAvatar(n.agent);
   renderAgents(); renderRight(n);
@@ -1263,6 +1270,7 @@ function selectNode(id){
 }
 function deselectNode(){
   selected.id = null; focusSet = new Set(); highlightId = null;
+  if(wrap) wrap.classList.remove('focused');   // v6.6: ambient motion resumes
   setGhostAvatar('reception');
   cam.tz = 0.45; cam.ttx = 0; cam.tty = 0;
   $('#briefPanel').classList.remove('show');
@@ -1339,7 +1347,7 @@ wrap.addEventListener('pointercancel', e=>{
    ============================================================ */
 function frame(now){
   const t = now/1000;
-  if(autoRot) rotY += 0.00025;   // slow drift
+  if(autoRot) rotY += selected.id ? 0.00012 : 0.00025;   // v6.6: drift halves when focused
   cam.zoom += (cam.tz - cam.zoom)*0.09;
   cam.tx += (cam.ttx - cam.tx)*0.09;
   cam.ty += (cam.tty - cam.ty)*0.09;
@@ -1356,8 +1364,10 @@ function frame(now){
   for(const p of particles){
     const sx = ((p.x*0.5+0.5)*W + Math.sin(t*p.sp+p.tw)*10);
     const sy = ((p.y*0.5+0.5)*H + Math.cos(t*p.sp+p.tw)*10);
-    const a = (0.12 + 0.35*Math.abs(Math.sin(t*p.sp+p.tw))*p.z).toFixed(3);
-    ctx.fillStyle='rgba(217,185,120,'+a+')';
+    let a = (0.12 + 0.35*Math.abs(Math.sin(t*p.sp+p.tw))*p.z);
+    if(selected.id) { if(p.z<0.5) continue; a *= 0.5; }   // v6.6: fewer/dimmer stars when focused
+    const out = 'rgba(217,185,120,'+a.toFixed(3)+')';
+    ctx.fillStyle=out;
     ctx.fillRect(sx,sy,p.size*p.z, p.size*p.z);
   }
 
@@ -1435,6 +1445,14 @@ function frame(now){
   const order = nodes.slice().sort((a,b)=> projMap[b.id].s - projMap[a.id].s);
   for(const n of order){
     const pr = projMap[n.id];
+    /* v6.6: depth-fade bulk classes — far-side files recede into the
+       volume instead of stacking flat; meaning-classes keep full alpha */
+    let depthMul = 1;
+    if(n.type==='file' && !hotFiles.has(n.id) && orbitFilter!=='files'){
+      const d = Math.max(0, Math.min(1, (pr.s-0.10)/0.18));
+      if(d<=0.02){ continue; }
+      depthMul = d;
+    }
     let alpha = 1;
     if(orbitFilter==='agents') alpha = n.type==='agent' ? 1 : 0.14;
     else if(orbitFilter==='chats') alpha = (n.type==='agent' || n.type==='conversation') ? 1 : 0.14;
@@ -1443,7 +1461,7 @@ function frame(now){
     else if(orbitFilter==='memory') alpha = n.type==='memory' ? 1 : 0.14;
     if(selected.id===n.id || hoverId===n.id || highlightId===n.id) alpha = 1;
     else if(focused && !focusSet.has(n.id)) alpha = Math.min(alpha, 0.16);
-    drawNode(n, pr, focused, alpha);
+    drawNode(n, pr, focused, alpha*depthMul);
   }
 
   // flashes
@@ -2025,10 +2043,17 @@ function drawFloor(){
 function drawZoneRings(projMap){
   const byZone = {};
   nodes.forEach(n=>{ if(n.type==='memory' && n.zone!=='profile'){ (byZone[n.zone]=byZone[n.zone]||[]).push(n); } });
+  /* v6.6 selection → zone echo: the selected node's zone ring
+     brightens so the system visibly acknowledges the pick */
+  let echoZone = null;
+  if(selected.id && nodeMap[selected.id] && nodeMap[selected.id].type==='memory'){
+    echoZone = nodeMap[selected.id].zone;
+  }
   Object.keys(byZone).forEach(z=>{
     const arr = byZone[z]; if(arr.length<3) return;
     const col = zoneColor(z);
-    ctx.strokeStyle = col; ctx.globalAlpha = 0.10; ctx.lineWidth = 2.2; ctx.setLineDash([6,6]);
+    const echo = (z===echoZone);
+    ctx.strokeStyle = col; ctx.globalAlpha = echo ? 0.38 : 0.10; ctx.lineWidth = echo ? 3 : 2.2; ctx.setLineDash([6,6]);
     ctx.beginPath();
     arr.forEach((n,k)=>{ const p = projMap[n.id]; if(!p) return; if(k===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
     ctx.closePath(); ctx.stroke();
