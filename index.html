@@ -953,9 +953,9 @@ function applyState(){
   if(!selected.id) setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
   if(!selected.id || !nodeMap[selected.id]){
     // keep the cinematic spaceship default view; do not auto-select a node at boot
-    renderRight(null);
+    renderRightStable(null);
   } else {
-    const n = nodeMap[selected.id]; renderRight(n); if(n.type==='agent') setChat(n);
+    const n = nodeMap[selected.id]; renderRightStable(n); if(n.type==='agent') setChat(n);
   }
 }
 function refreshState(){
@@ -967,7 +967,7 @@ function refreshState(){
   updateAgentStatus(); renderCron(); renderAssets(); renderCalendar(); renderMemoryTab();
   applyMemoryState();
   if($('#dashboard').classList.contains('show')) renderDashboard();
-  const n = nodeMap[selected.id]; if(n) renderRight(n);
+  const n = nodeMap[selected.id]; if(n) renderRightStable(n);
 }
 function markHot(){
   const cutoff = Date.now()/1000 - 48*3600;
@@ -1280,7 +1280,7 @@ function selectNode(id){
   wrap.classList.add('focused');   // v6.6: attention-gated motion — ambient goes quiet
   const n = nodeMap[id];
   if(n && n.type==='agent') setGhostAvatar(n.agent);
-  renderAgents(); renderRight(n);
+  lastRightSig=null; renderAgents(); renderRightStable(n);
   if(n){ if(n.type==='agent') setChat(n); else { const o = nodeMap['agent:'+n.owner]; if(o) setChat(o); } }
   computeFocus();
   const p = worldPos(id);
@@ -1301,7 +1301,7 @@ function deselectNode(){
   $('#briefPanel').classList.remove('show');
   $('#zoomOut').hidden = true;
   setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
-  renderAgents(); renderRight(null);
+  lastRightSig=null; renderAgents(); renderRightStable(null);
 }
 function computeFocus(){
   focusSet = new Set();
@@ -1638,6 +1638,30 @@ function openFile(f){
 /* ============================================================
    RIGHT PANEL (agent OR file)
    ============================================================ */
+/* v6.6.4: poll-stable right panel — the 8s /state tick used to re-render the
+   open panel unconditionally, resetting scroll + flashing the preview to
+   "Loading…". Skip the rebuild when the node's data is unchanged, and
+   preserve scroll positions (#rightBody + inner .mprev boxes) when it isn't. */
+let lastRightSig = null;
+function rightSig(n){
+  if(!n) return null;
+  try{ return JSON.stringify([n.id, n.mtime, n.size, n.busy, n.actLabel||'', n.message_count||0,
+    n.session_count||0, n.skill_count||0, n.memory_count||0, n.last_ts||0, (G.edges||[]).length, (n.files||[]).length]); }
+  catch(e){ return null; }
+}
+function renderRightStable(n){
+  const rb=$('#rightBody'); if(!rb) return;
+  if(!n){ renderRight(null); lastRightSig=null; return; }
+  const sig=rightSig(n);
+  if(sig!==null && sig===lastRightSig) return; // unchanged — leave the DOM (and scroll) alone
+  const saves=[rb.scrollTop];
+  rb.querySelectorAll('.mprev').forEach(el=>saves.push(el.scrollTop));
+  renderRight(n);
+  lastRightSig=sig;
+  rb.scrollTop=saves[0];
+  let _i=1;
+  rb.querySelectorAll('.mprev').forEach(el=>{ el.scrollTop=saves[_i]||0; _i++; });
+}
 function renderRight(n){
   const rn=$('#rName'), rro=$('#rRole'), rs=$('#rState'), ro=$('#rOrb'), rb=$('#rightBody');
   if(!n){
