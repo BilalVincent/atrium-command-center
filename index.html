@@ -742,6 +742,26 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
   .cc-sb-in input{font-size:16px;min-height:44px}
   .cc-sb-prev{max-width:38vw}
 }
+
+/* ============================================================
+   v6.8: BUYER FIRST RUN
+   Gate copy polish + one-time first-run checklist card.
+   Additive-only; glass recipe; palette pinned literal hex.
+   ============================================================ */
+.cc-fr-scrim{position:fixed;inset:0;z-index:99995;display:none;align-items:center;justify-content:center;background:rgba(18,15,11,.55)}
+.cc-fr-scrim.show{display:flex}
+.cc-fr-card{background:rgba(250,247,240,.09);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(217,185,120,.22);border-radius:22px;box-shadow:0 18px 50px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.07);max-width:400px;width:min(92vw,400px);padding:26px 28px 22px;color:#E9E4D8;text-align:left}
+.cc-fr-kicker{font-size:10px;letter-spacing:.32em;color:#B08D57;margin-bottom:8px}
+.cc-fr-title{font-size:19px;font-weight:700;color:#F4EFE3;margin:0 0 14px;line-height:1.3}
+.cc-fr-card ol{list-style:none;margin:0 0 18px;padding:0;display:flex;flex-direction:column;gap:11px}
+.cc-fr-card li{display:flex;gap:11px;font-size:13.5px;line-height:1.5;color:rgba(233,228,216,.92)}
+.cc-fr-num{flex:0 0 auto;width:22px;height:22px;border-radius:50%;border:1px solid rgba(205,165,38,.55);color:#CDA526;font-size:11.5px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:2px}
+.cc-fr-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.cc-fr-go{background:#CDA526;border:none;border-radius:999px;color:#14110D;font-family:inherit;font-size:13px;font-weight:700;padding:10px 18px;cursor:pointer}
+.cc-fr-go:hover{filter:brightness(1.07)}
+.cc-fr-skip{background:none;border:none;color:rgba(233,228,216,.55);font-family:inherit;font-size:12px;cursor:pointer;text-decoration:underline;padding:8px}
+.cc-fr-skip:hover{color:#E9E4D8}
+@media (max-width:600px){ .cc-fr-card{padding:22px 18px 16px} }
 </style>
 </head>
 <body>
@@ -749,12 +769,13 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
 <div id="authGate" style="position:fixed;inset:0;z-index:99999;background:rgba(18,15,11,.98);display:none;align-items:center;justify-content:center;">
   <div style="text-align:center;color:#e9e4d8;max-width:320px;padding:28px;">
     <div style="font-size:12px;letter-spacing:.35em;color:#B08D57;margin-bottom:10px;">A.T.R.I.U.M.</div>
-    <div style="font-size:20px;font-weight:600;margin-bottom:4px;">AI Operating System</div>
-    <div style="font-size:13px;color:#8f887a;margin-bottom:20px;">Memory command center · enter your access PIN</div>
+    <div style="font-size:20px;font-weight:600;margin-bottom:4px;">Your team is waiting inside.</div>
+    <div style="font-size:13px;color:#8f887a;margin-bottom:20px;">Enter the access PIN from your welcome message.</div>
     <input id="authPin" type="password" inputmode="numeric" autocomplete="off" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;"
       style="width:100%;box-sizing:border-box;padding:13px;font-size:20px;text-align:center;letter-spacing:.4em;background:#17130d;border:1px solid #B08D57;border-radius:8px;color:#fff;outline:none;">
     <button id="authGo" style="margin-top:14px;width:100%;padding:13px;font-size:14px;font-weight:700;letter-spacing:.05em;color:#17130d;background:#B08D57;border:none;border-radius:8px;cursor:pointer;">UNLOCK</button>
     <div id="authErr" style="margin-top:12px;font-size:12px;color:#e06c6c;min-height:16px;"></div>
+    <div style="margin-top:10px;font-size:11px;color:#8f887a;">Lost your PIN? <a href="mailto:support@theatrium.tech" style="color:#B08D57;text-decoration:none;">support@theatrium.tech</a></div>
   </div>
 </div>
 <script>
@@ -771,7 +792,7 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
     fetch('/auth', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pin: pin.value})})
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
       .then(function(res){
-        if(res.ok){ window.hideGate(); pin.value=''; if(typeof fetchState==='function') fetchState(); }
+        if(res.ok){ window.hideGate(); pin.value=''; try{ if(!localStorage.getItem('atriumCCFirstRun') && window.ccShowFirstRun) setTimeout(window.ccShowFirstRun, 900); }catch(e){} if(typeof fetchState==='function') fetchState(); }
         else { err.textContent = 'Wrong PIN — try again.'; pin.value=''; pin.focus(); }
       })
       .catch(function(){ err.textContent = 'Could not reach server.'; });
@@ -1065,6 +1086,22 @@ renderShrunkBar(true);
   </div>
 </div>
 
+<div class="cc-fr-scrim" id="ccFirstRun" role="dialog" aria-modal="true" aria-label="Getting started">
+  <div class="cc-fr-card">
+    <div class="cc-fr-kicker">WELCOME ABOARD</div>
+    <h3 class="cc-fr-title">Three taps and you're fluent</h3>
+    <ol>
+      <li><span class="cc-fr-num">1</span><span>Click a glowing node to inspect its work</span></li>
+      <li><span class="cc-fr-num">2</span><span>Search anything in the bar above</span></li>
+      <li><span class="cc-fr-num">3</span><span>Message your team below &mdash; or Shrink the chat to watch the orbit</span></li>
+    </ol>
+    <div class="cc-fr-actions">
+      <button class="cc-fr-go" id="ccFrGo" type="button">Show me around</button>
+      <button class="cc-fr-skip" id="ccFrSkip" type="button">skip</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1089,7 +1126,7 @@ async function fetchState(){
     if(!stateLoaded){ applyState(); stateLoaded = true; }
     else refreshState();
     updateLiveBadge(true);
-  }catch(e){ updateLiveBadge(false); if(!stateLoaded) toast('Backend not reachable — is cc_server.py running?'); }
+  }catch(e){ console.warn('CC /state unreachable:', e); updateLiveBadge(false); if(!stateLoaded) toast("We're reconnecting your system — this takes under a minute. Need help? support@theatrium.tech"); }
 }
 function updateLiveBadge(ok){
   $('#liveBadge').classList.toggle('off', !ok);
@@ -2064,7 +2101,7 @@ async function sendChat(){
     const reply = d.reply || ('(' + (d.error||'no reply') + ')');
     chatHist[chatAgent].push({role:'agent', text: reply});
     speak(chatAgent, d.reply || '');
-  }catch(e){ chatHist[chatAgent].push({role:'agent', text:'I couldn\'t reach the relay — is the VPS up?'}); }
+  }catch(e){ console.warn('relay /chat failed:', e); chatHist[chatAgent].push({role:'agent', text:'Your agent isn\'t answering right now — we\'re on it. Try again shortly or mail support@theatrium.tech.'}); }
   chatThinking(false); sending=false; $('#chatSend').disabled=false;
   renderChat(n); renderChats();
 }
@@ -2105,7 +2142,26 @@ $('#ghostBtn').onclick = openGuide;
 $('#guideClose').onclick = closeGuide;
 $('#ghostScrim').onclick = closeGuide;
 $('#guideGot').onclick = closeGuide;
-$('#guideMore').onclick = ()=>{ toast('More guidance is on the build list.'); };
+$('#guideMore').onclick = ()=>{
+  $('#guideBody').innerHTML = '<p>This map is <b>live</b>: the glowing nodes are your agents, and everything floating around them is your real files and memory — click any of them to see the work inside.</p><p><b>Search</b> up top reaches every note, file, and conversation in the system. <b>Chat below</b> goes straight to the real agent on duty, and <b>Task</b> hands one of them actual work to do and report back.</p>';
+};
+
+/* ---- v6.8: buyer first-run checklist (shows ONCE, after FIRST successful auth) ---- */
+window.ccShowFirstRun = function(){
+  let seen = false;
+  try{ seen = !!localStorage.getItem('atriumCCFirstRun'); }catch(e){}
+  if(seen) return;
+  const fr = document.getElementById('ccFirstRun'); if(fr) fr.classList.add('show');
+};
+function ccCloseFirstRun(){
+  try{ localStorage.setItem('atriumCCFirstRun','1'); }catch(e){}
+  const fr = document.getElementById('ccFirstRun'); if(fr) fr.classList.remove('show');
+}
+(function(){
+  const go = document.getElementById('ccFrGo'), skip = document.getElementById('ccFrSkip');
+  if(go) go.onclick = ccCloseFirstRun;
+  if(skip) skip.onclick = ccCloseFirstRun;
+})();
 
 /* ---- ghost-button avatar (selected agent) ---- */
 const GHOST_SVG = '<svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M32 12c15 0 21 10 21 22v7c0 3-1 6-4 7l-2 1c-1 3-3 5-6 6-2 1-5 1-8 1h-1c-4 0-8-1-11-3-3-1-5-4-5-8 0-3 2-6 5-7 7-3 15-3 21 0 1-2 1-4 0-6-3-2-7-3-10-3-14 0-20 8-20 19 0 7 3 13 9 17l-1 3c-2 2-3 5-2 8" stroke="#7C5F37" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="24" cy="30" r="3" fill="#2A2620"/><circle cx="40" cy="30" r="3" fill="#2A2620"/><path d="M28 39c2.5 2 5.5 2 8 0" stroke="#2A2620" stroke-width="2.4" stroke-linecap="round"/></svg>';
