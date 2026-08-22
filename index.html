@@ -122,7 +122,7 @@ canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touc
 .ghost-btn svg{width:34px;height:34px}
 @keyframes ghostHalo{0%,100%{box-shadow:0 0 0 0 var(--gold-glow),0 12px 28px rgba(0,0,0,.45)}50%{box-shadow:0 0 0 14px rgba(176,141,87,0),0 12px 28px rgba(0,0,0,.45)}}
 
-.chat{flex:1 1 auto;min-height:260px;display:flex;flex-direction:column;background:var(--paper);border-top:1px solid var(--line)}
+.chat{flex:0 0 auto;height:min(40dvh,360px);min-height:190px;display:flex;flex-direction:column;background:var(--paper);border-top:1px solid var(--line)}
 .chat-head{display:flex;align-items:center;gap:8px;padding:7px 14px;border-bottom:1px solid var(--line)}
 .chat-head .who{font-size:12.5px;font-weight:800;display:flex;align-items:center;gap:8px}
 .chat-head .who .d{width:8px;height:8px;border-radius:50%;background:var(--gold)}
@@ -479,20 +479,24 @@ body{background:#0C0B08;color:var(--ink)}
 /* 5) full-screen modals — frosted glass over the orbit */
 #dashboard,#taskModal{background:rgba(12,11,8,.55);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%)}
 
-/* 6) filter pills (relocated into the topbar corner cluster) — glass */
-.hud-filters{pointer-events:auto}
-.hud-filter{background:rgba(250,247,240,.055);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(217,185,120,.22)}
 /* ============================================================
-   v6.3.1: CORNER PANEL SIZING — make the two-row panel fit the
-   desktop topbar without clipping the rightmost filter pills.
+   v6.5: TOP-RIGHT CLUSTER RESTORED (slim single-row, v6.2 look)
+   — Vincent: the v6.3 two-row corner panel was obstructive.
+   Kept the v6.3 spacing/typography polish, dropped the big box.
    ============================================================ */
-.topbar .right .dash-btn{padding:5px 10px;font-size:10px}
-.topbar .right .hud-filter .fl{display:none}
-.topbar .right .hud-filters{flex:1 1 100%; justify-content:flex-end; gap:6px}
-.topbar .right .hud-filter{padding:0;min-width:34px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;font-size:14px}
+.cluster-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.cluster-div{width:1px;height:22px;background:var(--line-strong);flex:0 0 auto}
 .topbar .right .chip{font-size:9.5px;padding:3px 7px}
 .topbar .right .live{font-size:9.5px}
 .topbar .right .clock{font-size:10px}
+.topbar .right .dash-btn{padding:5px 10px;font-size:10px}
+@media (max-width:600px){ .topbar .right .g-status{display:none} }
+
+/* 6) filter pills — back in the LEFT RAIL above the calendar
+   (between profiles and calendar, as originally briefed) */
+.hud-filters{pointer-events:auto}
+.hud-filter{background:rgba(250,247,240,.055);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(217,185,120,.22)}
+.zone-filters{display:flex;gap:5px;margin:8px 10px 2px;padding:0 2px;flex-wrap:wrap;flex:0 0 auto}
 
 /* ============================================================
    v6.1: MOBILE-FRIENDLY OS CHROME — responsive breakpoints.
@@ -613,17 +617,8 @@ body{background:#0C0B08;color:var(--ink)}
 @media (max-width:1400px){ .hud-right{flex:1 0 100%} }
 /* zoom-out moves below the hud rows so it never covers the FOCUS pill */
 .zoom-out{top:100px}
-/* B. Corner cluster — enlarged two-row glass panel */
-.topbar .right .corner-panel{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-radius:16px;background:rgba(250,247,240,.055);backdrop-filter:blur(22px) saturate(150%);-webkit-backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(217,185,120,.22);box-shadow:0 18px 50px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.07)}
-.corner-row{display:flex;align-items:center;gap:8px}
-.corner-row.status-row{justify-content:flex-end}
-.corner-row .corner-status{display:flex;align-items:center;gap:8px}
-.corner-row.nav-row{justify-content:flex-end;flex-wrap:wrap}
-.corner-divider{width:100%;height:1px;background:rgba(217,185,120,.15);margin:2px 0;flex-shrink:0}
-.topbar .right .chip{font-size:10px;padding:4px 8px}
-.topbar .right .live{font-size:10px;gap:6px;letter-spacing:.1em}
-.topbar .right .clock{font-size:11px}
-@media (max-width:600px){ .topbar .right .corner-status{display:none} }
+/* B. Corner cluster — v6.5 restored slim single-row (see v6.5 block
+   above; v6.3's two-row glass panel removed per Vincent). */
 /* C. Left rail — directives/documents cards hidden (containers kept so
    renderDirectives/renderDocuments JS and node-click access stay intact) */
 </style>
@@ -673,26 +668,15 @@ body{background:#0C0B08;color:var(--ink)}
       <div class="brand-text"><span class="name">A.T.R.I.U.M.</span><span class="tag">AI Operating System</span></div>
     </div>
     <div class="right">
-      <div class="corner-panel">
-        <div class="corner-row status-row">
-          <div class="corner-status">
-            <span class="chip system" id="systemChip" title=""><span class="st"></span>SYSTEM · <b>—</b></span>
-            <span class="live" id="liveBadge"><span class="dot"></span><span id="liveText">Connecting…</span></span>
-          </div>
-          <span class="clock" id="clock">—</span>
-        </div>
-        <span class="corner-divider" aria-hidden="true"></span>
-        <div class="corner-row nav-row">
-          <button class="dash-btn" id="dashBtn"><span class="fic">📊</span><span class="fl">Dashboard</span></button>
-          <button class="dash-btn" id="taskBtn"><span class="fic">⚡</span><span class="fl">Task</span></button>
-          <div class="hud-filters" id="hudFilters">
-            <button class="hud-filter active" data-filter="agents"><span class="fic">◉</span><span class="fl">Agents</span></button>
-            <button class="hud-filter" data-filter="chats"><span class="fic">💬</span><span class="fl">Chats</span></button>
-            <button class="hud-filter" data-filter="cron"><span class="fic">⏱</span><span class="fl">Cron</span></button>
-            <button class="hud-filter" data-filter="files"><span class="fic">📁</span><span class="fl">Files</span></button>
-            <button class="hud-filter" data-filter="memory"><span class="fic">🧠</span><span class="fl">Memory</span></button>
-          </div>
-        </div>
+      <div class="cluster-group g-status">
+        <span class="chip system" id="systemChip" title=""><span class="st"></span>SYSTEM · <b>—</b></span>
+        <span class="live" id="liveBadge"><span class="dot"></span><span id="liveText">Connecting…</span></span>
+      </div>
+      <span class="cluster-div" aria-hidden="true"></span>
+      <div class="cluster-group g-controls">
+        <button class="dash-btn" id="dashBtn"><span class="fic">📊</span><span class="fl">Dashboard</span></button>
+        <button class="dash-btn" id="taskBtn"><span class="fic">⚡</span><span class="fl">Task</span></button>
+        <span class="clock" id="clock">—</span>
       </div>
     </div>
   </header>
@@ -704,6 +688,13 @@ body{background:#0C0B08;color:var(--ink)}
       <div class="rail-sec"><span>Agent <b>Profiles</b></span><span style="font-size:9px" id="profileMeta">—</span></div>
       <div id="profileList" class="profile-list"></div>
       <div id="profileFocus" class="profile-focus" style="display:none"></div>
+    </div>
+    <div class="zone-filters" id="hudFilters">
+      <button class="hud-filter active" data-filter="agents"><span class="fic">◉</span><span class="fl">Agents</span></button>
+      <button class="hud-filter" data-filter="chats"><span class="fic">💬</span><span class="fl">Chats</span></button>
+      <button class="hud-filter" data-filter="cron"><span class="fic">⏱</span><span class="fl">Cron</span></button>
+      <button class="hud-filter" data-filter="files"><span class="fic">📁</span><span class="fl">Files</span></button>
+      <button class="hud-filter" data-filter="memory"><span class="fic">🧠</span><span class="fl">Memory</span></button>
     </div>
     <div class="directives" style="display:none">
       <div class="rail-sec"><span>Directives <b>TOP 3</b></span><span style="font-size:9px">board</span></div>
