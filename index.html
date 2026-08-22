@@ -659,6 +659,29 @@ body{background:#0C0B08;color:var(--ink)}
    above; v6.3's two-row glass panel removed per Vincent). */
 /* C. Left rail — directives/documents cards hidden (containers kept so
    renderDirectives/renderDocuments JS and node-click access stay intact) */
+/* ============================================================
+   v6.6.3: CORNER PILL BREATHING ROOM — Vincent: the glass pill
+   around the top-right cluster hugs its contents (SYSTEM chip
+   touches the left border, DASHBOARD/TASK graze the top, clock
+   squeezes the right edge). Pad the pill, widen the gaps, full
+   stadium radius. Scoped to .topbar .right ONLY — the sidebar
+   glass card (.right) is untouched. Additive; wins by source order.
+   ============================================================ */
+.topbar .right{
+  padding:7px 16px 7px 15px;
+  gap:14px;
+  border-radius:999px;
+  align-items:center;
+}
+.topbar .right .cluster-group{gap:12px}
+.topbar .right .cluster-div{margin:0 2px}
+@media (max-width:820px){
+  .topbar .right{padding:6px 12px;gap:10px}
+  .topbar .right .cluster-group{gap:9px}
+}
+@media (max-width:600px){
+  .topbar .right{padding:5px 10px;gap:8px}
+}
 </style>
 </head>
 <body>
