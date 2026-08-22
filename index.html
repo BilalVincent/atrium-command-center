@@ -525,7 +525,9 @@ body{background:#0C0B08;color:var(--ink)}
 .topbar .right .chip{font-size:9.5px;padding:3px 7px}
 .topbar .right .live{font-size:9.5px}
 .topbar .right .clock{font-size:10px}
-.topbar .right .dash-btn{padding:5px 10px;font-size:10px}
+/* v6.6.1: wider Dashboard/Task pills (icons removed) — roomier
+   labels, everything else in the cluster untouched */
+.topbar .right .dash-btn{padding:5px 10px;font-size:10px;gap:0;min-width:96px;justify-content:center;letter-spacing:.12em}
 @media (max-width:600px){ .topbar .right .g-status{display:none} }
 
 /* 6) filter pills — back in the LEFT RAIL above the calendar
@@ -710,8 +712,8 @@ body{background:#0C0B08;color:var(--ink)}
       </div>
       <span class="cluster-div" aria-hidden="true"></span>
       <div class="cluster-group g-controls">
-        <button class="dash-btn" id="dashBtn"><span class="fic">📊</span><span class="fl">Dashboard</span></button>
-        <button class="dash-btn" id="taskBtn"><span class="fic">⚡</span><span class="fl">Task</span></button>
+        <button class="dash-btn" id="dashBtn"><span class="fl">Dashboard</span></button>
+        <button class="dash-btn" id="taskBtn"><span class="fl">Task</span></button>
         <span class="clock" id="clock">—</span>
       </div>
     </div>
