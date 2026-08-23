@@ -762,6 +762,26 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
 .cc-fr-skip{background:none;border:none;color:rgba(233,228,216,.55);font-family:inherit;font-size:12px;cursor:pointer;text-decoration:underline;padding:8px}
 .cc-fr-skip:hover{color:#E9E4D8}
 @media (max-width:600px){ .cc-fr-card{padding:22px 18px 16px} }
+
+/* v6.9: B-02 COMMAND PALETTE */
+#cmdkOverlay{position:fixed;inset:0;display:none;z-index:9000;background:rgba(42,38,32,.45)}
+#cmdkOverlay.open{display:flex}
+#cmdkPanel{width:min(600px,calc(100vw - 32px));margin:12vh auto auto;max-height:70vh;display:flex;flex-direction:column;background:rgba(250,247,240,.055);backdrop-filter:blur(22px) saturate(150%);border:1px solid rgba(217,185,120,.22);border-radius:22px;box-shadow:0 18px 50px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.07);transform:translateY(-8px) scale(.98);opacity:0;transition:opacity .12s ease, transform .12s ease;color:#E9E4D8;overflow:hidden}
+#cmdkOverlay.open #cmdkPanel{transform:none;opacity:1}
+#cmdkInput{background:transparent;border:none;outline:none;color:#E9E4D8;font-family:inherit;font-size:15px;padding:14px 16px;border-bottom:1px solid rgba(217,185,120,.18)}
+#cmdkInput::placeholder{color:rgba(233,228,216,.4)}
+#cmdkStatus{display:none;padding:8px 16px;font-size:11px;letter-spacing:.06em;color:rgba(233,228,216,.55)}
+#cmdkStatus.show{display:block}
+#cmdkResults{flex:1 1 auto;min-height:0;overflow-y:auto;padding:6px 0}
+.cmdk-row{display:flex;gap:10px;align-items:flex-start;padding:10px 16px;cursor:pointer;border-left:3px solid transparent}
+.cmdk-row.active{background:rgba(176,141,87,.18);border-left-color:#B08D57}
+.cmdk-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex:0 0 auto}
+.cmdk-body{min-width:0;flex:1 1 auto}
+.cmdk-title{font-size:13px;font-weight:600;color:#E9E4D8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmdk-meta{display:block;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#B08D57;margin-top:2px}
+.cmdk-snippet{display:block;font-size:11px;color:rgba(233,228,216,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+#cmdkHints{padding:8px 16px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(176,141,87,.75);border-top:1px solid rgba(217,185,120,.18)}
+@media (max-width:600px){ #cmdkPanel{margin-top:8vh} }
 </style>
 </head>
 <body>
@@ -2863,6 +2883,123 @@ function toggleDrawer(){
 fetchState();
 setInterval(fetchState, 8000);
 requestAnimationFrame(frame);
+
+/* ============================================================
+   v6.9: B-02 COMMAND PALETTE (Cmd/Ctrl+K) — keyboard jump over live /search.
+   Additive; capture-phase keys shield the L1547 Esc deselect while open.
+   ============================================================ */
+function __cmdkInit(){
+if(window.__cmdkBound) return; window.__cmdkBound=1;
+const ov=document.getElementById('cmdkOverlay'), input=document.getElementById('cmdkInput'),
+      statusEl=document.getElementById('cmdkStatus'), listEl=document.getElementById('cmdkResults');
+if(!ov||!input||!statusEl||!listEl) return;
+let cmdkTimer=null, cmdkAbort=null, cmdkSeq=0, activeIdx=-1, rows=[];
+function setStatus(t){ if(!t){ statusEl.classList.remove('show'); statusEl.textContent=''; return; } statusEl.textContent=t; statusEl.classList.add('show'); }
+function clearRows(){ rows=[]; activeIdx=-1; listEl.innerHTML=''; }
+function resolveNode(r){ return (r.node_id && nodeMap[r.node_id]) || nodes.find(function(x){return x.path===r.path;}); }
+function rowColor(r){ try{ const n=resolveNode(r); return n && n.type==='memory' ? zoneColor(n.zone) : '#B08D57'; }catch(e){ return '#B08D57'; } }
+function setActive(i){
+  const n=rows.length; if(!n) return;
+  activeIdx=((i%n)+n)%n;
+  Array.prototype.forEach.call(listEl.children, function(el,idx){ el.classList.toggle('active', idx===activeIdx); });
+  const el=listEl.children[activeIdx]; if(el && el.scrollIntoView){ try{ el.scrollIntoView({block:'nearest'}); }catch(e){} }
+}
+function renderCmdk(results){
+  clearRows();
+  const q=input.value.trim();
+  if(!results.length){ setStatus('Nothing found for "'+q+'"'); return; }
+  setStatus(null);
+  listEl.innerHTML=results.map(function(r,i){
+    const badge=(r.type||'memory').toUpperCase();
+    return '<div class="cmdk-row" data-i="'+i+'">'
+      +'<span class="cmdk-dot" style="background:'+rowColor(r)+'"></span>'
+      +'<span class="cmdk-body"><span class="cmdk-title">'+esc(r.name)+'</span>'
+      +'<span class="cmdk-meta">'+esc(badge)+' · '+esc((r.zone||'').toUpperCase())+' · '+Math.round((r.score||0)*100)+'%</span>'
+      +'<span class="cmdk-snippet">'+esc((r.snippet||'').slice(0,140))+'</span></span>'
+      +'</div>';
+  }).join('');
+  rows=results.slice();
+  Array.prototype.forEach.call(listEl.children, function(el){
+    el.addEventListener('mouseenter', function(){ setActive(parseInt(el.dataset.i,10)); });
+    el.addEventListener('click', function(){ activate(rows[parseInt(el.dataset.i,10)]); });
+  });
+  setActive(0);
+}
+function activate(r){
+  if(!r) return;
+  const n=resolveNode(r);
+  if(n){ closeCmdk(); selectNode(n.id); }
+  else { toast('Result is not on the current graph.'); console.warn('cmdk unmapped result', r); }
+}
+function runCmdkSearch(q){
+  if(!q.trim()){ clearRows(); setStatus(null); return; }
+  if(cmdkAbort){ try{ cmdkAbort.abort(); }catch(e){} }
+  let aborted=false; cmdkAbort={ abort:function(){ aborted=true; } };
+  const seq=++cmdkSeq;
+  setStatus('Searching memory…');
+  fetch('/search?q='+encodeURIComponent(q))
+    .then(function(r){
+      if(r.status===401){ window.showGate && window.showGate(); throw new Error('auth'); }
+      if(!r.ok) throw new Error(r.status);
+      return r.json();
+    })
+    .then(function(d){
+      if(aborted || seq!==cmdkSeq) return;
+      renderCmdk(d.results||[]);
+    })
+    .catch(function(err){
+      if(aborted || seq!==cmdkSeq) return;
+      if(err && err.message==='auth') return;
+      console.warn('cmdk search failed', err);
+      setStatus("Couldn't reach memory right now.");
+    });
+}
+function closeCmdk(){
+  ov.classList.remove('open');
+  clearRows(); setStatus(null);
+  if(cmdkTimer){ clearTimeout(cmdkTimer); cmdkTimer=null; }
+  if(cmdkAbort){ try{ cmdkAbort.abort(); }catch(e){} cmdkAbort=null; }
+  input.value='';
+  if(prevFocus && prevFocus.focus){ try{ prevFocus.focus(); }catch(e){} }
+  prevFocus=null;
+}
+let prevFocus=null;
+function openCmdk(){
+  prevFocus=document.activeElement;
+  ov.classList.add('open');
+  input.focus(); if(input.value) input.select();
+}
+window.addEventListener('keydown', function(e){
+  if((e.ctrlKey||e.metaKey) && String(e.key).toLowerCase()==='k'){
+    e.preventDefault();
+    if(ov.classList.contains('open')) closeCmdk(); else openCmdk();
+    return;
+  }
+  if(!ov.classList.contains('open')) return;
+  if(e.isComposing || e.keyCode===229) return;
+  if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); closeCmdk(); }
+  else if(e.key==='ArrowDown'){ e.preventDefault(); setActive(activeIdx+1); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); setActive(activeIdx-1); }
+  else if(e.key==='Enter'){ e.preventDefault(); activate(rows[activeIdx]); }
+  else if(e.key==='Tab'){ e.preventDefault(); }
+}, true);
+input.addEventListener('input', function(){
+  clearTimeout(cmdkTimer);
+  const q=input.value.trim();
+  if(!q){ clearRows(); setStatus(null); return; }
+  cmdkTimer=setTimeout(function(){ runCmdkSearch(q); }, 250);
+});
+ov.addEventListener('mousedown', function(e){ if(e.target===ov){ closeCmdk(); } });
+}
+if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', __cmdkInit); } else { __cmdkInit(); }
 </script>
+<div id="cmdkOverlay">
+  <div id="cmdkPanel" role="dialog" aria-modal="true" aria-label="Search memory">
+    <input id="cmdkInput" autocomplete="off" spellcheck="false" placeholder="Type to search memory…">
+    <div id="cmdkStatus"></div>
+    <div id="cmdkResults" role="listbox" aria-label="Results"></div>
+    <div id="cmdkHints">↑↓ navigate · ↵ jump · esc close</div>
+  </div>
+</div>
 </body>
 </html>
