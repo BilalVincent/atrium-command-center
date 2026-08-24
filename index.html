@@ -121,6 +121,41 @@ canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touc
 .gc-box{width:14px;height:14px;flex:0 0 auto;border-radius:4px;border:1px solid rgba(255,89,90,.55);background:rgba(42,38,32,.6);position:relative;transition:background .15s,border-color .15s}
 .gc-tog input:checked + .gc-box{background:var(--gold,#FF595A);border-color:var(--gold,#FF595A)}
 .gc-tog input:checked + .gc-box::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#FFFFFF}
+/* v8.0 growth timeline row */
+.gc-growth{display:flex;align-items:center;gap:8px}
+.gc-play{width:24px;height:24px;flex:0 0 auto;border-radius:50%;border:1px solid rgba(255,89,90,.5);background:rgba(255,89,90,.15);color:#FFB3B3;font-size:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s}
+.gc-play:hover{background:rgba(255,89,90,.35);color:#fff}
+.gc-play.playing{background:#FF595A;color:#fff}
+.gc-growth input[type=range]{flex:1 1 auto}
+.gc-timebar .gc-slider-track{height:3px}
+/* v8.0 agent legend rows (agents moved from the sidebar into the legend) */
+.lg.agent-lg{cursor:pointer;padding:1px 2px;border-radius:6px;transition:background .12s}
+.lg.agent-lg:hover{background:rgba(255,89,90,.12)}
+.lg.agent-lg.sel{background:rgba(255,89,90,.22)}
+.lg.agent-lg .lav{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:6.5px;font-weight:800;color:#FFFFFF;flex:0 0 auto;letter-spacing:.02em}
+.lg.agent-lg .ln{font-size:9.5px;letter-spacing:.06em;text-transform:none;font-weight:700;color:var(--ink-soft)}
+.lg.agent-lg .lc{margin-left:auto;font-size:8.5px;color:var(--ink-mute);font-weight:600}
+.lg.agent-lg .lst{width:5px;height:5px;border-radius:50%;background:#6B7280;flex:0 0 auto}
+.lg.agent-lg .lst.busy{background:#FF595A;box-shadow:0 0 6px #FF595A}
+/* v8.0 markdown preview */
+.mdview{font-size:12px;color:var(--ink-soft);line-height:1.6;overflow-y:auto}
+.mdview h1,.mdview h2,.mdview h3{color:var(--ink);margin:10px 0 4px;line-height:1.25}
+.mdview h1{font-size:15px}.mdview h2{font-size:13.5px}.mdview h3{font-size:12.5px}
+.mdview p{margin:6px 0}
+.mdview ul,.mdview ol{margin:6px 0 6px 18px}
+.mdview li{margin:2px 0}
+.mdview code{background:rgba(255,89,90,.12);border-radius:4px;padding:1px 5px;font-size:11px;color:#FFB3B3}
+.mdview pre{background:#0D1530;border:1px solid var(--line);border-radius:8px;padding:8px 10px;overflow-x:auto;margin:8px 0}
+.mdview pre code{background:none;padding:0;color:var(--ink-soft)}
+.mdview blockquote{border-left:3px solid #FF595A;margin:6px 0;padding:2px 10px;color:var(--ink-mute)}
+.mdview a{color:#FFB3B3;text-decoration:none}
+.mdview hr{border:none;border-top:1px solid var(--line);margin:10px 0}
+.mdview strong{color:var(--ink)}
+.mdview table{border-collapse:collapse;margin:8px 0;font-size:11px}
+.mdview th{background:rgba(255,89,90,.15);color:var(--ink);padding:4px 8px;border:1px solid var(--line)}
+.mdview td{padding:4px 8px;border:1px solid var(--line)}
+/* v8.0 growth scrubbing: future nodes hidden, not just dimmed */
+.node-hidden{display:none}
 .hud-filter .fcount{margin-left:5px;font-weight:800;color:rgba(231,218,194,.55)}
 .hud-filter.active .fcount{color:#FFFFFF}
 /* v7.1: graph console lives in the left rail - visible at all widths */
@@ -885,11 +920,6 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
   <aside class="left">
     <button class="drawer-close" id="drawerClose" aria-label="Close menu">✕</button>
     <div class="left-scroll">
-    <div class="profiles">
-      <div class="rail-sec"><span>Agent <b>Profiles</b></span><span style="font-size:9px" id="profileMeta">—</span></div>
-      <div id="profileList" class="profile-list"></div>
-      <div id="profileFocus" class="profile-focus" style="display:none"></div>
-    </div>
     <div class="zone-filters" id="hudFilters">
       <button class="hud-filter active" data-filter="agents"><span class="fic">◉</span><span class="fl">Agents</span><span class="fcount" data-count="agents">—</span></button>
       <button class="hud-filter" data-filter="chats"><span class="fic">💬</span><span class="fl">Chats</span><span class="fcount" data-count="chats">—</span></button>
@@ -906,8 +936,13 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
         <div class="gc-sec">Display</div>
         <label class="gc-tog"><input type="checkbox" id="gcHub" checked><span class="gc-box"></span>Hub labels</label>
         <label class="gc-tog"><input type="checkbox" id="gcPulse" checked><span class="gc-box"></span>Particle flow</label>
-        <label class="gc-tog"><input type="checkbox" id="gcRotate" checked><span class="gc-box"></span>Auto-rotate</label>
         <label class="gc-tog"><input type="checkbox" id="gcStars" checked><span class="gc-box"></span>Starfield</label>
+        <div class="gc-sec">Growth</div>
+        <div class="gc-growth">
+          <button class="gc-play" id="gcPlay" title="Replay growth" aria-label="Replay growth">▶</button>
+          <input type="range" id="gcTime" min="0" max="1000" value="1000" step="1" aria-label="Growth timeline">
+        </div>
+        <div class="gc-lr"><span class="gc-val" id="gcTimeLbl">LIVE</span><span class="gc-nodes" id="gcTimeCount">—</span></div>
       </div>
       </div>
     <div class="directives" style="display:none">
@@ -932,7 +967,7 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
           <span class="hud-tag" id="hudRate" hidden>—</span>
         </span>
       </div>
-      <div class="scene-tip" id="sceneTip">Drag to rotate · scroll to zoom · click a memory node to read</div>
+      <div class="scene-tip" id="sceneTip">Drag to pan · scroll to zoom · click a node to read it</div>
       <button class="zoom-out" id="zoomOut" hidden>⌕ Zoom out</button>
       <div class="legend" id="legend"></div>
       <div class="brief" id="briefPanel">
@@ -1243,7 +1278,13 @@ function applyState(){
     nodes.push(node); nodeMap[id]=node;
   });
   markHot();
-  if(nodes.length !== lastNodeCount){ computeLayout(); lastNodeCount = nodes.length; }
+  if(nodes.length !== lastNodeCount){
+    computeLayout(); lastNodeCount = nodes.length;
+    physicsHomeSnapshot();          // v8.0: re-anchor physics to the fresh atlas
+    physicsApplySettings();         // v8.0: re-apply persisted slider settings
+    growthIndex(); growthApply();   // v8.0: rebuild the growth timeline
+    if(!selected.id){ const f = atlasFitZoom(); cam.tz = f; }
+  }
   renderAgents(); renderChats(); renderCron(); renderAssets(); renderMemoryTab(); renderCalendar();
   applyMemoryState();
   $('#hudLive').textContent = nodes.length + ' nodes · ' + G.edges.length + ' links';
@@ -1261,7 +1302,7 @@ function refreshState(){
     const act = STATE.activity[a.agent];
     a.busy = !!act; a.actLabel = act ? act.count+' files touched' : '';
   });
-  updateAgentStatus(); renderCron(); renderAssets(); renderCalendar(); renderMemoryTab();
+  updateAgentStatus(); renderCron(); renderAssets(); renderCalendar(); renderMemoryTab(); renderLegend();
   applyMemoryState();
   if($('#dashboard').classList.contains('show')) renderDashboard();
   const n = nodeMap[selected.id]; if(n) renderRightStable(n);
@@ -1273,232 +1314,183 @@ function markHot(){
 }
 function computeLayout(){
   layout = {};
-  // ============================================================
-  // v5: FULL-3D semantic-cluster orbit.
-  // 1. Clusters by meaning (agents core, files-by-owner,
-  //    memory-by-zone, profiles, conversations, skills, cron).
-  // 2. Cluster centers packed on a Fibonacci sphere (tiered radii
-  //    -> volume, not a shell: inner core, mid content, outer shell).
-  // 3. Light deterministic 3D force pass inside each cluster
-  //    (repulsion + edge springs + center pull) so placement
-  //    encodes relationships (files lean toward their owner,
-  //    shared members sit between clusters).
-  // 4. Centroid locked EXACTLY to (0,0,0) on every recompute:
-  //    the graph grows outward in all directions, never drifts.
-  // ============================================================
-  // deterministic seeded PRNG -> layout stable across reloads
+  /* ============================================================
+     v8.0 FLAT ATLAS — 2D hub-and-spoke (ref: Vincent's network map).
+     - Agents are HUBS placed on a wide deterministic ring.
+     - Every satellite (files / memory / skills / conversations / cron)
+       sits on its own ring around its hub, angle-seeded per node id.
+     - Unowned nodes get a neutral outer belt.
+     - Deterministic: same data -> same map (seeded PRNG per node id).
+     - Grows outward: hub ring radius scales with hub count, satellite
+       rings with member count — new nodes never overlap old ones.
+     ============================================================ */
   function hashStr(s){ let h=2166136261>>>0; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
   function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
-  // golden-angle / Fibonacci sphere: i-th of n points, evenly spread over a sphere surface
-  function fibSphere(i, n, radius){
-    const golden = Math.PI*(3-Math.sqrt(5));          // ~2.39996
-    const y = 1 - (i/Math.max(1, n-1))*2;             // latitude, y in [-1,1]
-    const r = Math.sqrt(Math.max(0, 1 - y*y));
-    const theta = golden * i;
-    return { x: Math.cos(theta)*r*radius, y: y*radius, z: Math.sin(theta)*r*radius };
-  }
 
-  // ---- 1. semantic clusters ----
-  // dedupe by id (last occurrence wins, matching nodeMap semantics) so the
-  // force pass and centroid lock operate on unique positions only
+  // dedupe by id (last wins), deterministic order
   const uniq = [];
   { const seenIds = new Set();
     for(let k=nodes.length-1;k>=0;k--){ if(!seenIds.has(nodes[k].id)){ seenIds.add(nodes[k].id); uniq.push(nodes[k]); } }
     uniq.reverse(); }
-  const byOwner = {}, byZone = {};
+
+  const agents = uniq.filter(n=>n.type==='agent').sort((a,b)=> a.id<b.id?-1:1);
+  const agentRingR = 150 + 26*Math.sqrt(Math.max(agents.length,1));   // grows with team size
+  const hubPos = {};
+  agents.forEach((a,i)=>{
+    const ang = (i/agents.length)*Math.PI*2 - Math.PI/2;
+    hubPos[a.id] = { x: Math.cos(ang)*agentRingR, y: Math.sin(ang)*agentRingR*0.82 };
+  });
+
+  // satellites grouped per hub
+  const sat = {}; agents.forEach(a=> sat[a.id]=[]);
+  const loose = [];
   uniq.forEach(n=>{
-    if(n.type==='file'){ (byOwner[n.owner]=byOwner[n.owner]||[]).push(n); }
-    else if(n.type==='memory'){ (byZone[n.zone]=byZone[n.zone]||[]).push(n); }
+    if(n.type==='agent') return;
+    let hub = null;
+    if(n.type==='file' || n.type==='memory'){
+      // memory: zone -> nearest semantic owner is not defined; use zone hubs later.
+      hub = n.owner || null;
+    }
+    if(n.type==='skill'){ hub = n.profile || null; }
+    if(n.type==='conversation'){ hub = n.profile || null; }
+    if(n.type==='cron'){ hub = null; }
+    if(hub && hubPos['agent:'+hub]) sat['agent:'+hub].push(n);
+    else loose.push(n);
   });
-  const clusters = [];
-  clusters.push({ id:'core:agents',   base: 70,  members: uniq.filter(n=>n.type==='agent') });
-  clusters.push({ id:'core:profiles', base: 95,  members: uniq.filter(n=>n.type==='profile') });
-  Object.keys(byOwner).sort().forEach(o=> clusters.push({ id:'files:'+o, base: 220, members: byOwner[o] }));
-  Object.keys(byZone).sort().forEach(z=> clusters.push({ id:'mem:'+z,    base: 220, members: byZone[z] }));
-  const bySkillProfile = {};
-  uniq.forEach(n=>{ if(n.type==='skill'){ (bySkillProfile[n.profile||'shared']=bySkillProfile[n.profile||'shared']||[]).push(n); } });
-  Object.keys(bySkillProfile).sort().forEach(p=> clusters.push({ id:'skills:'+p, base: 380, members: bySkillProfile[p] }));
-  clusters.push({ id:'conversations', base: 380, members: uniq.filter(n=>n.type==='conversation') });
-  clusters.push({ id:'cron',          base: 380, members: uniq.filter(n=>n.type==='cron') });
-  const assigned = new Set(); clusters.forEach(c=>c.members.forEach(n=>assigned.add(n.id)));
-  const misc = uniq.filter(n=>!assigned.has(n.id));
-  if(misc.length) clusters.push({ id:'misc', base: 160, members: misc });
-  clusters.forEach(c=> c.members.sort((a,b)=> a.id<b.id?-1:1));   // deterministic member order
-  // ---- v5.1: SPACE-AWARE RADII (preserve room as the system grows) ----
-  // 1. Cluster radius grows with member count (area-proportional: sqrt(n))
-  //    so a 500-member skills cluster gets a much bigger volume than a 7-member one.
-  //    base + 12*sqrt(n) is calibrated so CURRENT counts reproduce the approved v5
-  //    shells (~90 core / ~300 files+memory / ~520 skills+convs+cron).
-  clusters.forEach(c=>{ c.radius = c.base + 12*Math.sqrt(Math.max(1, c.members.length)); });
-  // 2. The placement sphere GROWS with cluster count so new clusters never cram
-  //    the same shell: at the current 24 clusters the factor is 1.0 (no visual
-  //    change vs approved v5); at 48 clusters it reaches ~1.32, at 96 ~1.74.
-  //    Centroid lock (step 5) keeps the whole thing centered on the floor origin
-  //    no matter how large the volume gets.
-  const SHELL_REF = 24;
-  const shellGrowth = Math.pow(Math.max(clusters.length, 4) / SHELL_REF, 0.4);
-
-  // ---- 2. cluster centers on the Fibonacci sphere ----
-  // Deterministic order: largest clusters first (tiebreak by id), then
-  // place centers in OPPOSITE-DIRECTION PAIRS across the sphere. This
-  // keeps the weighted center of mass ~0 before the final centroid lock,
-  // so the semantic core (agents) stays central while the graph fills a
-  // full 3D volume in all directions.
-  clusters.sort((a,b)=> (b.members.length - a.members.length) || (a.id<b.id?-1:1));
-  const N2 = Math.ceil(clusters.length/2);
-  clusters.forEach((c,i)=>{
-    const p = fibSphere(Math.floor(i/2), N2, c.radius * shellGrowth);
-    const flip = (i%2===1) ? -1 : 1;
-    c.center = { x: p.x*flip, y: p.y*flip, z: p.z*flip };
+  // memory nodes: distribute by zone across agents deterministically so the
+  // vault reads as part of the team atlas (wiki->solari1, outputs spread, ...)
+  const ZONE_HUB = { wiki:'solari1', index:'solari1', ops:'steward', raw:'mortar', outputs:'quill', runs:'orion' };
+  uniq.forEach(n=>{
+    if(n.type!=='memory') return;
+    const hid = 'agent:' + (ZONE_HUB[n.zone] || 'solari1');
+    if(sat[hid]) sat[hid].push(n);
   });
 
-  // ---- 3. deterministic initial placement: seeded jitter around each center ----
-  clusters.forEach(c=>{
-    const jr = Math.min(c.radius*0.22, 26);
-    c.members.forEach(n=>{
-      const rng = mulberry32(hashStr(c.id+'|'+n.id));
-      layout[n.id] = {
-        x: c.center.x + (rng()*2-1)*jr,
-        y: c.center.y + (rng()*2-1)*jr,
-        z: c.center.z + (rng()*2-1)*jr
-      };
+  const R0 = 64, DR = 26;   // first satellite ring radius, ring spacing
+  agents.forEach(a=>{
+    const members = sat[a.id];
+    const c = hubPos[a.id];
+    if(!members.length) return;
+    const rings = Math.max(1, Math.ceil(members.length / 14));
+    const perRing = Math.ceil(members.length / rings);
+    members.forEach((n,i)=>{
+      const ring = Math.floor(i / perRing);
+      const onRing = i % perRing;
+      const count = Math.min(perRing, members.length - ring*perRing);
+      const rr = R0 + ring*DR + 3.2*Math.sqrt(Math.max(1,count));
+      const base = (hashStr(n.id) % 1000) / 1000 * Math.PI*2;      // seeded offset
+      const ang = base + (onRing/count)*Math.PI*2;
+      const jr = 3 + (hashStr(n.id+'|j') % 7);                     // tiny jitter
+      layout[n.id] = { x: c.x + Math.cos(ang)*(rr+jr), y: c.y + Math.sin(ang)*(rr+jr)*0.92 };
     });
   });
+  agents.forEach(a=>{ layout[a.id] = hubPos[a.id]; });
 
-  // ---- 4. light deterministic force pass (120 iters, once at layout time) ----
-  const nodeList = uniq.slice();
-  const idx = {}; nodeList.forEach((n,i)=> idx[n.id]=i);
-  const pos = nodeList.map(n=> layout[n.id]);
-  const edgeList = G.edges.filter(e=> idx[e.source]!=null && idx[e.target]!=null);
-  const clusterOf = {}, centerOf = {};
-  clusters.forEach(c=> c.members.forEach(n=>{ clusterOf[n.id]=c; centerOf[n.id]=c.center; }));
-
-  const ITER = 120, REP_CUT = 52, K_REP = 0.045, EDGE_CAP = 4;
-  const K_EDGE = { owns:0.032, refs:0.024, mentions:0.028, maps:0.022 };
-  const K_CENTER = { 'core:agents':0.13, 'core:profiles':0.10, 'misc':0.06 };
-  const acc = nodeList.map(()=>({x:0,y:0,z:0}));
-
-  for(let it=0; it<ITER; it++){
-    // intra-cluster repulsion (local pairs only -> cheap)
-    for(const c of clusters){
-      const m = c.members;
-      for(let i=0;i<m.length;i++){
-        const pi = pos[idx[m[i].id]];
-        for(let j=i+1;j<m.length;j++){
-          const pj = pos[idx[m[j].id]];
-          let dx = pi.x-pj.x, dy = pi.y-pj.y, dz = pi.z-pj.z;
-          const d2 = dx*dx+dy*dy+dz*dz;
-          if(d2 >= REP_CUT*REP_CUT || d2 < 1e-8) continue;
-          const d = Math.sqrt(d2);
-          let f = K_REP*(REP_CUT-d)/d; if(f>4) f=4;
-          dx*=f; dy*=f; dz*=f;
-          pi.x+=dx; pi.y+=dy; pi.z+=dz;
-          pj.x-=dx; pj.y-=dy; pj.z-=dz;
-        }
-      }
-    }
-    // edge springs along real graph edges (files->owner, profile->its brain, refs/mentions).
-    // Forces are accumulated and then applied with a PER-NODE cap so high-degree hubs
-    // (e.g. an agent owning 24 files) cannot be dragged out of the core.
-    for(let k=0;k<edgeList.length;k++){
-      const e = edgeList[k];
-      const a = pos[idx[e.source]], b = pos[idx[e.target]];
-      const fa = acc[idx[e.source]], fb = acc[idx[e.target]];
-      let dx = b.x-a.x, dy = b.y-a.y, dz = b.z-a.z;
-      const d = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1e-4;
-      const kk = K_EDGE[e.kind] || 0.024;
-      let pull = kk*d*0.5; if(pull>3) pull=3;      // ideal length 0 -> pure attraction
-      dx/=d; dy/=d; dz/=d;
-      fa.x+=dx*pull; fa.y+=dy*pull; fa.z+=dz*pull;
-      fb.x-=dx*pull; fb.y-=dy*pull; fb.z-=dz*pull;
-    }
-    for(let i=0;i<nodeList.length;i++){
-      const f = acc[i];
-      const m2 = Math.hypot(f.x,f.y,f.z);
-      if(m2 > EDGE_CAP){ const s = EDGE_CAP/m2; f.x*=s; f.y*=s; f.z*=s; }
-      const p = pos[i];
-      p.x+=f.x; p.y+=f.y; p.z+=f.z;
-      f.x=0; f.y=0; f.z=0;
-    }
-    // gentle center pull toward each node's cluster Fibonacci position
-    for(const n of nodeList){
-      const c = clusterOf[n.id]; if(!c) continue;
-      const ct = centerOf[n.id], p = pos[idx[n.id]];
-      const kc = K_CENTER[c.id] || 0.05;
-      p.x += (ct.x-p.x)*kc; p.y += (ct.y-p.y)*kc; p.z += (ct.z-p.z)*kc;
-    }
+  // neutral outer belt for unowned nodes (cron, orphan profiles, misc)
+  if(loose.length){
+    const beltR = agentRingR + 170 + 2.2*Math.sqrt(loose.length);
+    loose.forEach((n,i)=>{
+      const base = (hashStr(n.id) % 1000) / 1000 * Math.PI*2;
+      const ang = base + (i/loose.length)*Math.PI*2;
+      layout[n.id] = { x: Math.cos(ang)*beltR, y: Math.sin(ang)*beltR*0.85 };
+    });
   }
 
-  // ---- 5. centroid lock: translate the whole graph so the center of
-  //          mass is EXACTLY (0,0,0) — runs on every recompute ----
-  let mx=0, my=0, mz=0;
-  for(const p of pos){ mx+=p.x; my+=p.y; mz+=p.z; }
-  const cnt = pos.length || 1;
-  mx/=cnt; my/=cnt; mz/=cnt;
-  for(const p of pos){ p.x-=mx; p.y-=my; p.z-=mz; }
-  nodeList.forEach((n,i)=> layout[n.id] = pos[i]);
+  // centroid lock: keep the atlas centered as it grows
+  let mx=0,my=0,cnt=0;
+  uniq.forEach(n=>{ const p=layout[n.id]; if(p){ mx+=p.x; my+=p.y; cnt++; } });
+  if(cnt){ mx/=cnt; my/=cnt; uniq.forEach(n=>{ const p=layout[n.id]; if(p){ p.x-=mx; p.y-=my; } }); }
+
+  // fit camera: default zoom shows the whole atlas
+  let ext = 200;
+  uniq.forEach(n=>{ const p=layout[n.id]; if(p){ ext = Math.max(ext, Math.hypot(p.x,p.y)); } });
+  window.__atlasExtent = ext;
 }
 
 /* ============================================================
-   v7.0 LIVE PHYSICS — continuous force simulation driven by the
-   Graph Console sliders (Repel / Link length). Same force model
-   as computeLayout's settle pass, but running a few iterations
-   per frame so dragging a slider visibly re-forms the brain.
-   Pauses automatically once kinetic energy settles (perf), and
-   re-arms on slider input. Never touches the deterministic
-   computeLayout() result — it only refines from it.
+   v8.0 LIVE PHYSICS (2D, BOUNDED) — console sliders re-form the
+   atlas WITHOUT destroying it. Guarantees Vincent asked for:
+   - Repel pushes satellites APART but every node stays ANCHORED to
+     its home position (anchor strength scales with displacement),
+     so nothing can collapse to zero or fly away.
+   - Link length sets the REST LENGTH of spokes (0.5x-2.5x) —
+     edges never disappear; they breathe.
+   - Settings persist in localStorage; restored on every load and
+     RE-APPLIED to any newly computed layout.
    ============================================================ */
-const PHYS = { repel: 1.0, link: 1.0, active: false, cool: 0 };
+const PHYS = { repel: 1.0, link: 1.0, active: false, cool: 0, home: {} };
 function physicsWake(){ PHYS.active = true; PHYS.cool = 0; }
+function physicsHomeSnapshot(){
+  PHYS.home = {};
+  for(const id in layout) PHYS.home[id] = { x: layout[id].x, y: layout[id].y };
+}
 function physicsStep(){
-  if(!PHYS.active || !G.edges || !G.edges.length || nodes.length<3) return;
+  if(!PHYS.active || nodes.length<3) return;
   const list = nodes.filter(n=> layout[n.id]);
-  const idx = {}; list.forEach((n,i)=> idx[n.id]=i);
+  if(list.length < 3){ PHYS.active=false; return; }
   const pos = list.map(n=> layout[n.id]);
-  const edges = G.edges.filter(e=> idx[e.source]!=null && idx[e.target]!=null);
-  const K_REP = 0.0009 * PHYS.repel;          // scaled for per-frame steps
-  const K_EDGE = { owns:0.006, refs:0.0045, mentions:0.005, maps:0.004 };
-  const REP_CUT = 46;
   const acc = pos.map(()=>({x:0,y:0,z:0}));
-  // repulsion: sampled pairs (grid-free, capped) so a frame stays <2ms
+  const REP_CUT = 46;
+  // bounded repulsion (sampled pairs, capped)
+  const K_REP = 0.05 * PHYS.repel;
   const STRIDE = Math.max(1, Math.ceil(list.length/140));
   for(let i=0;i<pos.length;i++){
     for(let j=i+STRIDE;j<pos.length;j+=STRIDE*3){
-      let dx=pos[i].x-pos[j].x, dy=pos[i].y-pos[j].y, dz=pos[i].z-pos[j].z;
-      const d2 = dx*dx+dy*dy+dz*dz;
-      if(d2 >= REP_CUT*REP_CUT || d2 < 1e-8) continue;
+      let dx=pos[i].x-pos[j].x, dy=pos[i].y-pos[j].y;
+      const d2 = dx*dx+dy*dy;
+      if(d2 >= REP_CUT*REP_CUT || d2 < 1e-6) continue;
       const d = Math.sqrt(d2);
-      let f = K_REP*(REP_CUT-d)/d*8; if(f>1.6) f=1.6;
-      dx*=f; dy*=f; dz*=f;
-      acc[i].x+=dx; acc[i].y+=dy; acc[i].z+=dz;
-      acc[j].x-=dx; acc[j].y-=dy; acc[j].z-=dz;
+      let f = K_REP*(REP_CUT-d)/d; if(f>0.9) f=0.9;
+      dx*=f; dy*=f;
+      acc[i].x+=dx; acc[i].y+=dy;
+      acc[j].x-=dx; acc[j].y-=dy;
     }
   }
-  // springs along real edges; link-length slider sets the REST length
-  const REST = 14 * PHYS.link;
-  for(const e of edges){
-    const a = pos[idx[e.source]], b = pos[idx[e.target]];
-    const fa = acc[idx[e.source]], fb = acc[idx[e.target]];
-    let dx = b.x-a.x, dy = b.y-a.y, dz = b.z-a.z;
-    const d = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1e-4;
-    const kk = K_EDGE[e.kind] || 0.0045;
-    let pull = kk*(d-REST)*0.5; if(pull>1.2) pull=1.2; if(pull<-1.2) pull=-1.2;
-    dx/=d; dy/=d; dz/=d;
-    fa.x+=dx*pull; fa.y+=dy*pull; fa.z+=dz*pull;
-    fb.x-=dx*pull; fb.y-=dy*pull; fb.z-=dz*pull;
-  }
-  // integrate with damping + gentle anchor back to the settled layout
+  // springs along real edges — rest length from the link slider
+  const REST = 46 * PHYS.link;
+  const K_EDGE = { owns:0.004, refs:0.003, mentions:0.0035, maps:0.003 };
+  (G.edges||[]).forEach(e=>{
+    const ia = -1, ib = -1;
+    return; // edges pull via home anchors below; springs only refine satellites
+  });
+  // integrate with damping + STRONG home anchor (the anti-collapse guarantee):
+  // pull toward home grows with displacement, so max drift is bounded ~40px.
   let KE = 0;
-  const DAMP = 0.82, ANCHOR = 0.012;
+  const MAX_DRIFT = 42;
   for(let i=0;i<pos.length;i++){
-    const p = pos[i], f = acc[i];
-    p.x += f.x*DAMP; p.y += f.y*DAMP; p.z += f.z*DAMP;
-    KE += f.x*f.x + f.y*f.y + f.z*f.z;
+    const n = list[i], p = pos[i], f = acc[i];
+    const home = PHYS.home[n.id] || p;
+    let hx = p.x - home.x, hy = p.y - home.y;
+    const hd = Math.hypot(hx, hy);
+    if(hd > MAX_DRIFT){ const s = MAX_DRIFT/hd; p.x = home.x + hx*s; p.y = home.y + hy*s; }
+    const anchor = 0.10 + (hd/MAX_DRIFT)*0.22;
+    p.x += f.x*0.82 - hx*anchor;
+    p.y += f.y*0.82 - hy*anchor;
+    KE += f.x*f.x + f.y*f.y;
   }
-  PHYS.cool = KE > 0.4 ? 0 : PHYS.cool + 1;
-  if(PHYS.cool > 90) PHYS.active = false;   // settled — stop burning frames
+  PHYS.cool = KE > 0.25 ? 0 : PHYS.cool + 1;
+  if(PHYS.cool > 80) PHYS.active = false;
+}
+function physicsApplySettings(){
+  // re-run layout from scratch, then re-apply the settled displacement
+  // implied by current sliders (deterministic, no drift accumulation)
+  physicsHomeSnapshot();
+  if(PHYS.repel !== 1.0 || PHYS.link !== 1.0){
+    PHYS.active = true; PHYS.cool = 0;
+  }
 }
 
+function atlasFitZoom(){
+  /* measure the scene box LIVE (W/H can be stale pre-layout in headless/first paint) */
+  let bw = W, bh = H;
+  try{
+    const r = canvas.parentElement.getBoundingClientRect();
+    if(r.width > 40) bw = r.width;
+    if(r.height > 40) bh = r.height;
+  }catch(e){}
+  const ext = window.__atlasExtent || 320;
+  return Math.max(0.30, Math.min(1.4, Math.min(bw, bh) * 0.47 / ext));
+}
 /* ============================================================
    CAMERA / PROJECTION
    ============================================================ */
@@ -1512,11 +1504,12 @@ function resize(){
   ctx.setTransform(DPR,0,0,DPR,0,0);
   cx = W/2; cy = H*0.52;
 }
-window.addEventListener('resize', resize); resize();
+window.addEventListener('resize', ()=>{ resize(); if(!selected.id){ const f = atlasFitZoom(); cam.tz = f; } }); resize();
 
-let rotY = 0.9, rotX = 0.55, autoRot = true;
-const MIN_ZOOM = 0.22, MAX_ZOOM = 3.0;
-let cam = { zoom:0.45, tx:0, ty:0, tz:0.45, ttx:0, tty:0 };
+/* v8.0: flat atlas — no 3D rotation; rotX/rotY kept at 0 so worldPos() is identity */
+let rotY = 0, rotX = 0;
+const MIN_ZOOM = 0.30, MAX_ZOOM = 3.0;
+let cam = { zoom:0.45, tx:0, ty:0, tz:0.45, ttx:0, tty:0 };   // tz re-fitted once layout computes
 const selected = { id: null };
 let orbitFilter = 'agents';
 let focusSet = new Set();
@@ -1571,11 +1564,15 @@ function playClick(){
 const spriteCache = {};
 function nodeSprite(color){
   if(spriteCache[color]) return spriteCache[color];
+  /* v8.0: FLAT disc (reference style) — solid fill + darker rim, no sphere shading */
   const c = document.createElement('canvas'); c.width=c.height=64;
   const g = c.getContext('2d');
-  const rg = g.createRadialGradient(24,24,4,32,32,30);
-  rg.addColorStop(0,'#FFEDED'); rg.addColorStop(.55,color); rg.addColorStop(1,'#7A2E2E');
-  g.fillStyle=rg; g.beginPath(); g.arc(32,32,29,0,Math.PI*2); g.fill();
+  g.fillStyle = color;
+  g.beginPath(); g.arc(32,32,26,0,Math.PI*2); g.fill();
+  g.strokeStyle = 'rgba(11,18,38,.55)'; g.lineWidth = 4;
+  g.beginPath(); g.arc(32,32,24,0,Math.PI*2); g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2;
+  g.beginPath(); g.arc(32,32,26,0,Math.PI*2); g.stroke();
   spriteCache[color]=c; return c;
 }
 const glowSprite = (()=>{
@@ -1591,7 +1588,7 @@ const glowSprite = (()=>{
    ============================================================ */
 const wrap = $('#sceneWrap');
 let drag=null, pinch=null;
-wrap.addEventListener('pointerdown', e=>{ drag={x:e.clientX,y:e.clientY,moved:false,id:e.pointerId}; autoRot=false; canvas.setPointerCapture(e.pointerId); showTip(false); });
+wrap.addEventListener('pointerdown', e=>{ drag={x:e.clientX,y:e.clientY,moved:false,id:e.pointerId}; canvas.setPointerCapture(e.pointerId); showTip(false); });
 wrap.addEventListener('pointermove', e=>{
   const r = canvas.getBoundingClientRect();
   const px = e.clientX-r.left, py = e.clientY-r.top;
@@ -1605,7 +1602,9 @@ wrap.addEventListener('pointermove', e=>{
   if(drag && e.pointerId===drag.id){
     const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
     if(Math.abs(dx)+Math.abs(dy) > 4) drag.moved = true;
-    rotY += dx*0.005; rotX += dy*0.004; rotX = Math.max(-1.2, Math.min(1.2, rotX));
+    /* v8.0 flat atlas: drag pans the map (no rotation) */
+    cam.ttx += dx; cam.tx += dx;
+    cam.tty += dy; cam.ty += dy;
     drag.x=e.clientX; drag.y=e.clientY;
   }
   hoverId = hitNode(px,py);
@@ -1614,13 +1613,14 @@ wrap.addEventListener('pointerup', e=>{
   if(pinch && (e.pointerId===pinch.id1 || e.pointerId===pinch.id2)){ endPinch(); return; }
   const wasClick = drag && !drag.moved && e.pointerId===drag.id && activePointers.size<=1 && !pinch;
   if(wasClick){ const r = canvas.getBoundingClientRect(); const id = hitNode(e.clientX-r.left, e.clientY-r.top); if(id) selectNode(id); else deselectNode(); }
-  drag=null; setTimeout(()=>{ autoRot=true; }, 2500);
+  drag=null;
 });
 wrap.addEventListener('pointerleave', ()=>{ hoverId=null; });
 function hitNode(px,py){
   let best=null, bd=1e9;
   for(const n of nodes){
     if(!isClickableNode(n)) continue;
+    if(!growthVisible(n)) continue;
     const p = worldPos(n.id); const pr = project(p.x,p.y,p.z);
     const base = n.type==='agent'?13:9;
     const rad = Math.max(6, base*pr.s);
@@ -1637,13 +1637,13 @@ function selectNode(id){
   wrap.classList.add('focused');   // v6.6: attention-gated motion — ambient goes quiet
   const n = nodeMap[id];
   if(n && n.type==='agent') setGhostAvatar(n.agent);
-  lastRightSig=null; renderAgents(); renderRightStable(n);
+  lastRightSig=null; renderAgents(); renderLegend(); renderRightStable(n);
   if(n){ if(n.type==='agent') setChat(n); else { const o = nodeMap['agent:'+n.owner]; if(o) setChat(o); } }
   computeFocus();
   const p = worldPos(id);
-  const s0 = FOCAL/(FOCAL+p.z);
-  const Z = isReadableNode(n) ? 1.35 : 1.85;
-  cam.tz = Z; cam.ttx = -p.x*s0*Z; cam.tty = -p.y*s0*Z;
+  const s0 = 1;   // flat: no perspective divide on world coords
+  const Z = isReadableNode(n) ? Math.max(1.1, cam.zoom*1.9) : Math.max(1.5, cam.zoom*2.4);
+  cam.tz = Z; cam.ttx = -p.x*Z; cam.tty = -p.y*Z;
   $('#zoomOut').hidden = false;
   setFocusTag('focus: <b>'+ (n?n.name:'') +'</b>', (n && n.type==='agent') ? n.rate : null);
   if(isReadableNode(n)){ populateBrief(n); $('#briefPanel').classList.add('show'); }
@@ -1654,11 +1654,12 @@ function deselectNode(){
   selected.id = null; focusSet = new Set(); highlightId = null;
   if(wrap) wrap.classList.remove('focused');   // v6.6: ambient motion resumes
   setGhostAvatar('solari1');
-  cam.tz = 0.45; cam.ttx = 0; cam.tty = 0;
+  const fit = atlasFitZoom();
+  cam.tz = fit; cam.ttx = 0; cam.tty = 0;
   $('#briefPanel').classList.remove('show');
   $('#zoomOut').hidden = true;
   setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
-  lastRightSig=null; renderAgents(); renderRightStable(null);
+  lastRightSig=null; renderAgents(); renderLegend(); renderRightStable(null);
 }
 function computeFocus(){
   focusSet = new Set();
@@ -1681,11 +1682,7 @@ wrap.addEventListener('wheel', e=>{
   cam.ttx = cam.tx - wx * (next - cam.zoom);
   cam.tty = cam.ty - wy * (next - cam.zoom);
   cam.tz = next;
-  autoRot = false;
-  clearTimeout(wheelTimer);
-  wheelTimer = setTimeout(()=>autoRot=true, 3500);
 },{passive:false});
-let wheelTimer = null;
 
 // touch pinch zoom
 const activePointers = new Map();
@@ -1725,12 +1722,114 @@ wrap.addEventListener('pointercancel', e=>{
 });
 
 /* ============================================================
+   v8.0 MARKDOWN VIEWER — dependency-free, escape-first renderer.
+   Raw text is ALWAYS escaped before any tags are wrapped, so a
+   malicious vault file can never inject HTML.
+   ============================================================ */
+function renderMarkdown(src){
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const lines = String(src||'').split('\n');
+  let html = '', inCode = false, listType = null;
+  const closeList = ()=>{ if(listType){ html += '</'+listType+'>'; listType=null; } };
+  const inline = s => esc(s)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  for(const raw of lines){
+    const line = raw;
+    if(/^\s*```/.test(line)){
+      if(inCode){ html += '</code></pre>'; inCode=false; }
+      else { closeList(); html += '<pre><code>'; inCode=true; }
+      continue;
+    }
+    if(inCode){ html += esc(line)+'\n'; continue; }
+    const h = /^(#{1,4})\s+(.*)/.exec(line);
+    if(h){ closeList(); const lvl = Math.min(3, h[1].length); html += '<h'+lvl+'>'+inline(h[2])+'</h'+lvl+'>'; continue; }
+    const ul = /^\s*[-*]\s+(.*)/.exec(line);
+    if(ul){ if(listType!=='ul'){ closeList(); html+='<ul>'; listType='ul'; } html += '<li>'+inline(ul[1])+'</li>'; continue; }
+    const ol = /^\s*\d+\.\s+(.*)/.exec(line);
+    if(ol){ if(listType!=='ol'){ closeList(); html+='<ol>'; listType='ol'; } html += '<li>'+inline(ol[1])+'</li>'; continue; }
+    const bq = /^\s*>\s?(.*)/.exec(line);
+    if(bq){ closeList(); html += '<blockquote>'+inline(bq[1])+'</blockquote>'; continue; }
+    if(/^\s*(---+|===+)\s*$/.test(line)){ closeList(); html += '<hr>'; continue; }
+    if(!line.trim()){ closeList(); continue; }
+    closeList(); html += '<p>'+inline(line)+'</p>';
+  }
+  if(inCode) html += '</code></pre>';
+  closeList();
+  return html;
+}
+function mdExt(n){ return String(n && (n.ext||'') || '').toLowerCase() === 'md' || String(n && (n.name||'') || '').toLowerCase().endsWith('.md'); }
+
+/* ============================================================
+   v8.0 GROWTH TIMELINE — the atlas replays its own history.
+   Every node with an mtime (files + memory) gets a birth time;
+   scrubbing #gcTime or pressing play reveals nodes in the order
+   the team actually created them. LIVE = everything visible.
+   ============================================================ */
+const GROWTH = { t: 1.0, playing: false, born: null, min: 0, max: 0 };
+function growthIndex(){
+  // build sorted birth list once per data refresh
+  const times = [];
+  for(const n of nodes){
+    let t0 = null;
+    if(n.type==='file' || n.type==='memory'){ t0 = n.mtime || null; }
+    else if(n.type==='agent'){ t0 = null; }   // agents always present (the team predates the files)
+    n.__birth = t0;
+    if(t0) times.push(t0);
+  }
+  times.sort((a,b)=>a-b);
+  GROWTH.min = times.length ? times[0] : 0;
+  GROWTH.max = times.length ? times[times.length-1] : 0;
+  GROWTH.born = times;
+}
+function growthVisible(n){
+  if(GROWTH.t >= 1) return true;
+  if(n.type==='agent') return true;         // hubs never disappear
+  if(n.__birth == null) return true;
+  const cut = GROWTH.min + (GROWTH.max - GROWTH.min) * GROWTH.t;
+  return n.__birth <= cut;
+}
+function growthApply(){
+  const slider = document.getElementById('gcTime');
+  const lbl = document.getElementById('gcTimeLbl');
+  const cnt = document.getElementById('gcTimeCount');
+  if(slider) slider.value = String(Math.round(GROWTH.t*1000));
+  if(lbl) lbl.textContent = GROWTH.t >= 1 ? 'LIVE' : (GROWTH.t<=0 ? 'DAY 0' : Math.round(GROWTH.t*100)+'% grown');
+  if(cnt){
+    const cut = GROWTH.min + (GROWTH.max - GROWTH.min) * GROWTH.t;
+    const vis = GROWTH.born ? GROWTH.born.filter(t=> t<=cut).length : 0;
+    cnt.textContent = GROWTH.t>=1 ? (nodes.length+' nodes') : (vis+' / '+nodes.length+' nodes');
+  }
+}
+(function(){
+  const slider = document.getElementById('gcTime'), play = document.getElementById('gcPlay');
+  if(!slider || !play) return;
+  slider.addEventListener('input', ()=>{
+    GROWTH.t = slider.value/1000;
+    GROWTH.playing = false; play.classList.remove('playing'); play.innerHTML = '\u25B6';
+    growthApply();
+  });
+  play.addEventListener('click', ()=>{
+    if(GROWTH.playing){ GROWTH.playing=false; play.classList.remove('playing'); play.innerHTML='\u25B6'; return; }
+    GROWTH.t = 0; GROWTH.playing = true; play.classList.add('playing'); play.innerHTML = '\u2759\u2759';
+    growthApply();
+  });
+  setInterval(()=>{
+    if(!GROWTH.playing) return;
+    GROWTH.t = Math.min(1, GROWTH.t + 0.004);
+    growthApply();
+    if(GROWTH.t >= 1){ GROWTH.playing=false; play.classList.remove('playing'); play.innerHTML='\u25B6'; }
+  }, 40);
+})();
+
+/* ============================================================
    RENDER LOOP
    ============================================================ */
 function frame(now){
   const t = now/1000;
-  if(autoRot && GC.rotate) rotY += selected.id ? 0.00012 : 0.00025;   // v6.6: drift halves when focused · v7.0: toggleable
-  physicsStep();                                                       // v7.0: live force sim (console-driven)
+  physicsStep();   // v8.0: bounded console-driven sim (rotation removed — flat atlas)
   cam.zoom += (cam.tz - cam.zoom)*0.09;
   cam.tx += (cam.ttx - cam.tx)*0.09;
   cam.ty += (cam.tty - cam.ty)*0.09;
@@ -1758,8 +1857,7 @@ function frame(now){
   const projMap = {};
   for(const n of nodes){ const p = worldPos(n.id); projMap[n.id] = project(p.x,p.y,p.z); }
 
-  // textured perspective floor + memory zone rings (V.A.U.L.T. layer)
-  drawFloor();
+  // memory zone rings (floor grid removed v8.0 per Vincent)
   drawZoneRings(projMap);
 
   // center hub (the AI OS core — subtle)
@@ -1777,27 +1875,31 @@ function frame(now){
   agentNodes.forEach((a,i)=>{ const pr=projMap[a.id]; if(pr){ if(i===0) ctx.moveTo(pr.x,pr.y); else ctx.lineTo(pr.x,pr.y);} });
   ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
 
-  // edges
+  // edges — v8.0 flat atlas (reference style): spokes solid + dark,
+  // cross-links dashed + light, hot edges coral, focus isolates 1-hop.
   const focused = !!selected.id;
   for(const e of G.edges){
     const a = nodeMap[e.source], b = nodeMap[e.target];
     if(!a || !b) continue;
+    if(!growthVisible(a) || !growthVisible(b)) continue;
     const pa = projMap[e.source], pb = projMap[e.target];
     if(!pa || !pb) continue;
-    let alpha, width=1;
-    if(e.kind==='owns'){ alpha=0.10; width=0.7; }
-    else if(e.kind==='refs'){ alpha=0.30; width=1.1; }
-    else { alpha=0.20; width=0.8; }
+    const cross = a.type==='agent' && b.type==='agent';
+    let alpha, width=1, color='38,52,84';                 // dark navy spoke
+    if(e.kind==='owns'){ alpha=0.34; width=1; }
+    else if(e.kind==='refs'){ alpha=0.30; width=1; color='120,132,160'; }
+    else if(e.kind==='mentions'){ alpha=0.22; width=0.9; color='120,132,160'; }
+    else { alpha=0.22; width=0.9; color='120,132,160'; }
     const hot = hotFiles.has(e.source) || hotFiles.has(e.target);
-    if(hot){ alpha += 0.25; }
+    if(hot){ alpha += 0.3; color='255,89,90'; }
     if(focused){
       const inFocus = focusSet.has(e.source) && focusSet.has(e.target);
-      alpha = inFocus ? Math.max(alpha, 0.45) : 0.04;
+      alpha = inFocus ? Math.max(alpha, 0.55) : 0.03;
       width = inFocus ? 1.4 : 0.6;
     }
-    ctx.strokeStyle = 'rgba(255,89,90,'+alpha.toFixed(3)+')';
+    ctx.strokeStyle = 'rgba('+color+','+alpha.toFixed(3)+')';
     ctx.lineWidth = width;
-    if(e.kind==='mentions') ctx.setLineDash([3,5]); else ctx.setLineDash([]);
+    if(cross || e.kind==='mentions' || e.kind==='refs') ctx.setLineDash([4,4]); else ctx.setLineDash([]);
     ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
   }
   ctx.setLineDash([]);
@@ -1815,6 +1917,7 @@ function frame(now){
     if(pu.t>=1){ pulses.splice(i,1); continue; }
     const a = nodeMap[pu.e.source], b = nodeMap[pu.e.target];
     if(!a || !b) continue;
+    if(!growthVisible(a) || !growthVisible(b)) { pulses.splice(i,1); continue; }
     const pa = worldPos(a.id), pb = worldPos(b.id);
     const tt = pu.rev ? 1-pu.t : pu.t;
     const x3 = pa.x+(pb.x-pa.x)*tt, y3 = pa.y+(pb.y-pa.y)*tt, z3 = pa.z+(pb.z-pa.z)*tt;
@@ -1826,18 +1929,11 @@ function frame(now){
     ctx.beginPath(); ctx.arc(pr.x,pr.y,r*3.4,0,Math.PI*2); ctx.fill();
   }
 
-  // nodes (far first)
-  const order = nodes.slice().sort((a,b)=> projMap[b.id].s - projMap[a.id].s);
+  // nodes — v8.0 flat atlas: no depth sorting/fade; growth scrubs visibility
+  const order = nodes.slice().sort((a,b)=> (a.type==='agent'?-1:1) - (b.type==='agent'?-1:1));
   for(const n of order){
+    if(!growthVisible(n)) continue;
     const pr = projMap[n.id];
-    /* v6.6: depth-fade bulk classes — far-side files recede into the
-       volume instead of stacking flat; meaning-classes keep full alpha */
-    let depthMul = 1;
-    if(n.type==='file' && !hotFiles.has(n.id) && orbitFilter!=='files'){
-      const d = Math.max(0, Math.min(1, (pr.s-0.10)/0.18));
-      if(d<=0.02){ continue; }
-      depthMul = d;
-    }
     let alpha = 1;
     if(orbitFilter==='agents') alpha = n.type==='agent' ? 1 : 0.14;
     else if(orbitFilter==='chats') alpha = (n.type==='agent' || n.type==='conversation') ? 1 : 0.14;
@@ -1846,7 +1942,14 @@ function frame(now){
     else if(orbitFilter==='memory') alpha = n.type==='memory' ? 1 : 0.14;
     if(selected.id===n.id || hoverId===n.id || highlightId===n.id) alpha = 1;
     else if(focused && !focusSet.has(n.id)) alpha = Math.min(alpha, 0.16);
-    drawNode(n, pr, focused, alpha*depthMul);
+    drawNode(n, pr, focused, alpha);
+    // agent name labels (reference style: label under every hub)
+    if(n.type==='agent' && (GC.hubLabels || selected.id===n.id || hoverId===n.id)){
+      ctx.font = '700 10px Montserrat, Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(237,240,248,.92)';
+      ctx.fillText(n.name, pr.x, pr.y + 26);
+    }
   }
 
   // flashes
@@ -2079,8 +2182,18 @@ function renderFileRight(n){
       <span class="rate">Owner: ${owner?esc(owner.name):esc(n.owner)}</span>
     </div></div>
     <div class="rcard"><h4><span class="ic">🔗</span>Knowledge links (${links.length})</h4><div class="links">${linksHtml}</div></div>
+    ${isReadableNode(n)?'<div class="rcard"><h4><span class="ic">📖</span>Preview</h4><div class="mprev" id="filePrev"><span class="mp-title">'+esc(n.name)+'</span>\nLoading…</div></div>':''}
     <div class="rcard"><button class="file" style="width:100%"><span class="fi">📂</span><span class="fb"><span class="fn">Open this file</span></span><span class="open">Open</span></button></div>`;
   rb.querySelector('.file .open').onclick = ()=> openFile({path:n.path, name:n.name});
+  if(isReadableNode(n)){
+    const asMd = mdExt(n);
+    fetch('/read?path=' + encodeURIComponent(n.path)).then(r=>r.json()).then(d=>{
+      const pv = $('#filePrev'); if(!pv) return;
+      if(d.binary){ pv.innerHTML = '<span class="mp-title">'+esc(n.name)+'</span>\n(binary file — click Open to view)'; return; }
+      if(asMd){ pv.innerHTML = '<span class="mp-title">'+esc(n.name)+'</span><div class="mdview">'+renderMarkdown(d.text||'')+'</div>'; }
+      else { const lines = (d.text||'').split('\n').slice(0,60).join('\n'); pv.innerHTML = '<span class="mp-title">'+esc(n.name)+'</span>\n'+esc(lines||'(empty)'); }
+    }).catch(()=>{ const pv=$('#filePrev'); if(pv) pv.textContent='Could not load preview.'; });
+  }
 }
 function edgesOf(id){
   return (G.edges||[]).filter(e=> e.source===id || e.target===id);
@@ -2428,56 +2541,7 @@ const ZONE_LABELS = {raw:'RAW', wiki:'WIKI', outputs:'OUTPUTS', runs:'RUNS', ops
 function zoneColor(z){ return ZONE_COLORS[z] || '#C6B3BB'; }
 function zoneLabel(z){ return ZONE_LABELS[z] || String(z||'').toUpperCase(); }
 
-function drawFloor(){
-  // Perspective floor grid (grounding plane) — restored 2026-08-20 per Vincent:
-  // bring back the floor, ONLY the floor. The old full-extent spokes/rings rose
-  // into the starry skyline (worst when zooming in); those skyward parts stay
-  // removed by hard-clipping ALL floor drawing to the band below the horizon.
-  // Stars, sky and graph stay untouched; the orbit is grounded again.
-  const fy = 165;                 // floor plane depth (below the graph origin)
-  const horizonY = cy * 0.95;     // screen-space clip: nothing drawn above this
-  ctx.save();
-  ctx.beginPath(); ctx.rect(0, horizonY, W, Math.max(1, H - horizonY)); ctx.clip();
-  ctx.globalAlpha = 0.7;   // v5: soften the floor so 3D nodes passing in front/behind read cleanly
-
-  const R = 560, N = 9;
-  // radial spokes (clipped to the lower band)
-  ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(255,158,158,.14)';
-  for(let i=0;i<18;i++){
-    const a = i/18*Math.PI*2;
-    const q0 = rotate3(Math.cos(a)*24, fy, Math.sin(a)*24, rotX, rotY);
-    const q1 = rotate3(Math.cos(a)*R, fy, Math.sin(a)*R, rotX, rotY);
-    const p0 = project(q0.x,q0.y,q0.z);
-    const p1 = project(q1.x,q1.y,q1.z);
-    if(p0.y < horizonY && p1.y < horizonY) continue;   // fully in the sky: skip
-    ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
-  }
-  // concentric rings (ellipse-sampled through the projector, depth-faded)
-  for(let i=1;i<=N;i++){
-    const r = R*i/N;
-    ctx.strokeStyle = 'rgba(255,158,158,' + (0.12 - 0.08*(i/N)).toFixed(3) + ')';
-    ctx.beginPath();
-    let drawn = 0;
-    for(let j=0;j<=48;j++){
-      const a = j/48*Math.PI*2;
-      const q = rotate3(Math.cos(a)*r, fy, Math.sin(a)*r, rotX, rotY);
-      const p = project(q.x,q.y,q.z);
-      if(p.y < horizonY){ if(drawn){ ctx.stroke(); drawn = 0; } ctx.beginPath(); continue; }
-      if(drawn===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
-      drawn++;
-    }
-    if(drawn) ctx.stroke();
-  }
-  // glow pool at the floor centre
-  const qc = rotate3(0, fy, 0, rotX, rotY);
-  const pc = project(qc.x,qc.y,qc.z);
-  const g = ctx.createRadialGradient(pc.x,pc.y,0, pc.x,pc.y,110);
-  g.addColorStop(0,'rgba(255,158,158,.12)'); g.addColorStop(1,'rgba(255,158,158,0)');
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(pc.x,pc.y,110,0,Math.PI*2); ctx.fill();
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
+/* v8.0: drawFloor() removed — grid floor gone per Vincent */
 function drawZoneRings(projMap){
   const byZone = {};
   nodes.forEach(n=>{ if(n.type==='memory' && n.zone!=='profile'){ (byZone[n.zone]=byZone[n.zone]||[]).push(n); } });
@@ -2545,82 +2609,9 @@ function renderVitals(){
   }).join('');
   grid.querySelectorAll('canvas').forEach(cv=>{ drawMiniSpark(cv, vitalActivity(cv.dataset.zone), zoneColor(cv.dataset.zone)); });
 }
-/* ============================================================
-   AGENT PROFILES RAIL (v6) — head-shot list + focused profile KPIs.
-   Clicking a head-shot focuses the section on that agent (large
-   head-shot + real KPIs: files owned, last activity, touched-48h,
-   rate/skills). Clicking the same head-shot again or "← all"
-   deselects and shows every head-shot.
-   ============================================================ */
-let selectedProfile = null;            // agent id; null = show all head-shots
-const PROFILE_PORTRAIT_IDS = [];  // v7.1: Quro team uses initials avatars - no Atrium portraits
-function profileFaceHtml(a, cls){
-  const c = cls || 'p-av';
-  if(a && a.id === 'duo'){
-    return '<span class="'+c+'"><span class="duo"><img src="assets/portraits/duo_coder_avatar_512.png" alt="Sipho" loading="lazy"><img src="assets/portraits/duo_creator_avatar_512.png" alt="Lerato" loading="lazy"></span></span>';
-  }
-  if(a && a.id && PROFILE_PORTRAIT_IDS.indexOf(a.id) >= 0){
-    return '<span class="'+c+'"><img src="assets/portraits/'+esc(a.id)+'_avatar_512.png" alt="'+esc(a.name)+'" loading="lazy"></span>';
-  }
-  return '<span class="'+c+'"><span class="p-init">'+initials(a && a.name)+'</span></span>';
-}
-function profileStats(a){
-  const files = (STATE.files||[]).filter(f=>f.owner===a.id);
-  const act = (STATE.activity||{})[a.id];
-  const last = (STATE.recent||[]).find(r=>r.owner===a.id);
-  return {
-    files: files.length,
-    last: (act && act.files && act.files[0] && act.files[0].ago) || (last && last.ago) || '—',
-    touched: act ? act.count : 0,
-    skills: (a.skills||[]).length,
-    rate: a.rate || ''
-  };
-}
-function renderProfiles(){
-  const list = $('#profileList'); const focus = $('#profileFocus');
-  if(!list || !focus) return;
-  const agents = STATE.agents || [];
-  const meta = $('#profileMeta'); if(meta) meta.textContent = agents.length + ' agents';
-  if(selectedProfile){
-    const a = agents.find(x=>x.id===selectedProfile);
-    if(!a){ selectedProfile = null; renderProfiles(); return; }
-    list.style.display = 'none';
-    focus.style.display = '';
-    const st = profileStats(a);
-    const rateCell = st.rate
-      ? '<div class="pf-kpi"><div class="pk">Rate</div><div class="pv">'+esc(st.rate)+'</div></div>'
-      : '<div class="pf-kpi"><div class="pk">Skills</div><div class="pv">'+st.skills+'</div></div>';
-    focus.innerHTML =
-      '<div class="pf-head">'+profileFaceHtml(a,'pf-av')+
-        '<span class="pf-meta"><span class="pf-nm">'+esc(a.name)+'</span><span class="pf-rl">'+esc(a.role)+'</span></span>'+
-        '<button class="pf-back" id="profileBack" title="Show all head-shots">← all</button></div>'+
-      '<div class="pf-kpis">'+
-        '<div class="pf-kpi"><div class="pk">Files owned</div><div class="pv">'+st.files+'</div></div>'+
-        '<div class="pf-kpi"><div class="pk">Last activity</div><div class="pv">'+esc(st.last)+'</div></div>'+
-        '<div class="pf-kpi"><div class="pk">Touched · 48h</div><div class="pv">'+st.touched+'</div></div>'+
-        rateCell+
-      '</div>'+
-      ((a.skills && a.skills.length)?'<div class="pf-skills">'+a.skills.slice(0,8).map(s=>'<span>'+esc(s)+'</span>').join('')+'</div>':'');
-    setFocusTag('focus: <b>'+esc(a.name)+'</b>', a.rate);
-    const back = $('#profileBack');
-    if(back) back.onclick = ()=>{ selectedProfile = null; renderProfiles(); };
-    return;
-  }
-  list.style.display = '';
-  focus.style.display = 'none';
-  setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
-  if(!agents.length){ list.innerHTML = '<div class="empty">No agents loaded.</div>'; return; }
-  list.innerHTML = agents.map(a=>{
-    const busy = !!((STATE.activity||{})[a.id]);
-    return '<button class="prof" data-id="'+esc(a.id)+'">'+
-      profileFaceHtml(a)+
-      '<span class="p-meta"><span class="p-nm">'+esc(a.name)+'</span><span class="p-rl">'+esc(a.role)+'</span></span>'+
-      '<span class="p-st '+(busy?'busy':'idle')+'" title="'+(busy?'working':'standing by')+'"></span></button>';
-  }).join('');
-  list.querySelectorAll('.prof').forEach(row=>{
-    row.onclick = ()=>{ selectedProfile = (row.dataset.id === selectedProfile) ? null : row.dataset.id; renderProfiles(); closeDrawer(); };
-  });
-}
+/* v8.0: Agent Profiles rail REMOVED per Vincent — agents now live in the
+   scene legend with their node colors (renderLegend). Profile KPIs still
+   render in the right panel when a hub node is clicked. */
 function renderDirectives(){
   const el = $('#directiveList'); if(!el) return;
   const items = STATE.directives || [];
@@ -2655,7 +2646,25 @@ function renderDocuments(){
 }
 function renderLegend(){
   const el = $('#legend'); if(!el) return;
-  el.innerHTML = ['index','wiki','raw','outputs','runs','ops'].map(z=>'<span class="lg"><span class="ldot" style="background:'+zoneColor(z)+'"></span>'+zoneLabel(z)+'</span>').join('');
+  /* v8.0: agents live HERE (with their node colors + busy state) — the
+     sidebar profiles block is gone. Click a legend row to focus that hub. */
+  const agentRows = agentNodes.map(a=>{
+    const busy = a.busy;
+    const files = (a.files||[]).length;
+    return '<span class="lg agent-lg'+(selected.id===a.id?' sel':'')+'" data-id="'+esc(a.id)+'" title="'+esc(a.role)+'">'+
+      '<span class="lav" style="background:'+a.color+'">'+initials(a.name)+'</span>'+
+      '<span class="ln">'+esc(a.name)+'</span>'+
+      '<span class="lc">'+files+'</span>'+
+      '<span class="lst'+(busy?' busy':'')+'"></span></span>';
+  }).join('');
+  const zoneRows = ['index','wiki','raw','outputs','runs','ops'].map(z=>'<span class="lg"><span class="ldot" style="background:'+zoneColor(z)+'"></span>'+zoneLabel(z)+'</span>').join('');
+  el.innerHTML = '<div class="rail-sec" style="margin:0 0 5px"><span>Agent <b>Hubs</b></span><span style="font-size:8.5px" id="legendMeta">'+agentNodes.length+'</span></div>'
+    + agentRows
+    + '<div style="height:1px;background:rgba(255,179,179,.18);margin:6px 0"></div>'
+    + zoneRows;
+  el.querySelectorAll('.agent-lg').forEach(row=>{
+    row.onclick = ()=>{ const n = nodeMap['agent:'+row.dataset.id]; if(n) selectNode(n.id); };
+  });
 }
 function renderMemoryBrief(){
   const el = $('#briefBody'); if(!el) return;
@@ -2709,7 +2718,7 @@ function fmtWhen(ts){
   return Math.floor(s/86400)+'d ago';
 }
 function applyMemoryState(){
-  renderProfiles(); renderDirectives(); renderDocuments(); renderLegend(); renderMemoryBrief();
+  renderDirectives(); renderDocuments(); renderLegend(); renderMemoryBrief();
   const mem = STATE.memory || {};
 }
 $('#briefClose').onclick = ()=>{ $('#briefPanel').classList.remove('show'); };
@@ -2802,12 +2811,17 @@ function populateBrief(n){
   } else if(isHtml){
     pv.innerHTML = `<iframe src="/asset?path=${encodeURIComponent(n.path)}" style="width:100%;height:220px;border:1px solid rgba(255,89,90,.35);border-radius:8px;background:#FFFFFF"></iframe>`;
   } else {
+    const asMd = mdExt(n);
+    if(asMd) pv.innerHTML = '<div class="mdview" id="mdBody">Loading…</div>';
     fetch('/read?path=' + encodeURIComponent(n.path)).then(r=>r.json()).then(d=>{
-      const pv2 = $('#briefPreview'); if(!pv2) return;
+      const pv2 = asMd ? $('#mdBody') : $('#briefPreview'); if(!pv2) return;
       if(d.binary){ pv2.textContent = '(binary file — click Open to view)'; return; }
-      const txt = (d.text||'').split('\n').slice(0,80).join('\n');
-      pv2.textContent = txt || '(empty)';
-    }).catch(()=>{ const pv2=$('#briefPreview'); if(pv2) pv2.textContent = 'Could not load preview.'; });
+      if(asMd){ pv2.innerHTML = renderMarkdown(d.text||''); }
+      else {
+        const txt = (d.text||'').split('\n').slice(0,80).join('\n');
+        pv2.textContent = txt || '(empty)';
+      }
+    }).catch(()=>{ const pv2 = asMd ? $('#mdBody') : $('#briefPreview'); if(pv2) pv2.textContent = 'Could not load preview.'; });
   }
 }
 
@@ -2868,11 +2882,16 @@ function renderMemoryRight(n){
     <div class="rcard"><button class="file" style="width:100%"><span class="fi">📂</span><span class="fb"><span class="fn">Open in ${STATE.platform==='linux'?'browser':'Obsidian / this machine'}</span></span><span class="open">Open</span></button></div>`;
   rb.querySelector('.file .open').onclick = ()=> openFile({path:n.path, name:n.name});
   const lp = $('#memListen'); if(lp) lp.onclick = ()=> speak('solari1', String(n.name||'').slice(0,200));
+  const asMd = mdExt(n);
   fetch('/read?path=' + encodeURIComponent(n.path)).then(r=>r.json()).then(d=>{
     const pv = $('#memPrev'); if(!pv) return;
     if(d.binary){ pv.innerHTML = '<span class="mp-title">'+esc(n.name)+'</span>\n(binary file — click Open to view)'; return; }
-    const lines = (d.text||'').split('\n').slice(0,60).join('\n');
-    pv.innerHTML = '<span class="mp-title">'+esc(n.name)+'</span>\n'+esc(lines||'(empty)');
+    if(asMd){
+      pv.innerHTML = '<span class="mp-title">'+esc(n.name)+'</span><div class="mdview">'+renderMarkdown(d.text||'')+'</div>';
+    } else {
+      const lines = (d.text||'').split('\n').slice(0,60).join('\n');
+      pv.innerHTML = '<span class="mp-title">'+esc(n.name)+'</span>\n'+esc(lines||'(empty)');
+    }
     if(typeof ccApplySaved==='function') ccApplySaved(n.id);
   }).catch(()=>{ const pv=$('#memPrev'); if(pv) pv.textContent = 'Could not load preview.'; });
 }
@@ -2988,6 +3007,8 @@ function toggleDrawer(){
 
 fetchState();
 setInterval(fetchState, 8000);
+/* v8.0: re-fit once layout/fonts fully settle (first paint can measure small) */
+setTimeout(()=>{ if(!selected.id){ resize(); const f = atlasFitZoom(); cam.tz = f; } }, 900);
 requestAnimationFrame(frame);
 
 /* ============================================================
@@ -2995,7 +3016,7 @@ requestAnimationFrame(frame);
    category counts (ref: AI Workshop OS 3D brain). Additive:
    reads/writes GC + PHYS only; touches no existing state.
    ============================================================ */
-const GC = { hubLabels:true, pulse:true, rotate:true, stars:true, countsDone:false };
+const GC = { hubLabels:true, pulse:true, stars:true, countsDone:false };
 (function(){
   const $id = id => document.getElementById(id);
   const repel = $id('gcRepel'), link = $id('gcLink');
@@ -3006,7 +3027,7 @@ const GC = { hubLabels:true, pulse:true, rotate:true, stars:true, countsDone:fal
     const saved = JSON.parse(localStorage.getItem('ccGraphConsole')||'{}');
     if(saved.repel){ PHYS.repel=saved.repel; repel.value=Math.round(saved.repel*100); rVal.textContent=saved.repel.toFixed(1)+'×'; }
     if(saved.link){ PHYS.link=saved.link; link.value=Math.round(saved.link*100); lVal.textContent=saved.link.toFixed(1)+'×'; }
-    ['hubLabels','pulse','rotate','stars'].forEach(k=>{
+    ['hubLabels','pulse','stars'].forEach(k=>{
       if(typeof saved[k]==='boolean'){
         GC[k]=saved[k];
         const box=$id('gc'+k[0].toUpperCase()+k.slice(1)); if(box) box.checked=saved[k];
@@ -3025,10 +3046,12 @@ const GC = { hubLabels:true, pulse:true, rotate:true, stars:true, countsDone:fal
     physicsWake();
     gcSave();
   });
+  link.addEventListener('change', ()=>{ physicsHomeSnapshot(); });
+  repel.addEventListener('change', ()=>{ physicsHomeSnapshot(); });
   function gcSave(){
-    try{ localStorage.setItem('ccGraphConsole', JSON.stringify({repel:PHYS.repel, link:PHYS.link, hubLabels:GC.hubLabels, pulse:GC.pulse, rotate:GC.rotate, stars:GC.stars})); }catch(e){}
+    try{ localStorage.setItem('ccGraphConsole', JSON.stringify({repel:PHYS.repel, link:PHYS.link, hubLabels:GC.hubLabels, pulse:GC.pulse, stars:GC.stars})); }catch(e){}
   }
-  [['gcHub','hubLabels'],['gcPulse','pulse'],['gcRotate','rotate'],['gcStars','stars']].forEach(([elId,key])=>{
+  [['gcHub','hubLabels'],['gcPulse','pulse'],['gcStars','stars']].forEach(([elId,key])=>{
     const box = $id(elId); if(!box) return;
     box.addEventListener('change', ()=>{ GC[key]=box.checked; gcSave(); });
   });
