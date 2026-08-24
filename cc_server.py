@@ -66,6 +66,49 @@ else:
     SCAN_DIRS = ["/relay", "/app"]
     # relay lives in a sibling container on the compose network ("relay" DNS name)
     RELAY_CANDIDATES = ["http://relay:8787"]
+# ---- v7.1 QURO TEAM REGISTRY (single source: ~/.hermes/agents/config/agents.yaml) ----
+# This surface is Vincent's OWN team ops room (Quro brand). The Atrium demo lineup
+# (agents.js) stays the data source ONLY on the VPS/Linux product deployment.
+# Cloud lane = navy #1A3561 · PHI zone (zero egress, local models) = coral #FF595A
+QURO_AGENTS = [
+ {"id": "solari1", "name": "Solari1", "role": "Chief of Staff - orchestration & QA", "zone": "cloud",
+  "model": "stealth/ox-alpha (OpenRouter)", "color": "#1A3561", "rate": "", "setup": "",
+  "bio": "Coordinates the team, delegates every task, QA's every delivery before it reaches Vincent.",
+  "personality": "Decisive, strategic, accountable.", "skills": ["Delegation", "Multica board", "QA review"], "voice": ""},
+ {"id": "atlas", "name": "Atlas", "role": "Implementation & Research", "zone": "cloud",
+  "model": "stealth/ox-alpha (OpenRouter)", "color": "#3D5A96", "rate": "", "setup": "",
+  "bio": "Pipeline design, optimization, research and architecture planning.",
+  "personality": "Analytical, thorough.", "skills": ["web-research", "market-research", "architecture-diagram"], "voice": ""},
+ {"id": "lyra", "name": "Lyra", "role": "Extraction & Writing", "zone": "cloud",
+  "model": "stealth/ox-alpha (OpenRouter)", "color": "#5B7BB4", "rate": "", "setup": "",
+  "bio": "Entity extraction, schema writing, RAG formatting and structured output.",
+  "personality": "Precise, articulate.", "skills": ["grounded-citations", "docx", "xlsx"], "voice": ""},
+ {"id": "orion", "name": "Orion", "role": "Coding Agent (Main)", "zone": "cloud",
+  "model": "stealth/ox-alpha (OpenRouter)", "color": "#6E88B8", "rate": "", "setup": "",
+  "bio": "Primary code writer - refactoring, repair and testing.",
+  "personality": "Pragmatic, test-first.", "skills": ["test-driven-development", "systematic-debugging"], "voice": ""},
+ {"id": "anvil", "name": "Anvil", "role": "DB & RAG/Graph Coding", "zone": "phi",
+  "model": "phi4-mini (local)", "color": "#FF595A", "rate": "", "setup": "",
+  "bio": "Schema design, pgvector/HNSW optimization, RAG and graph traversal code - PHI-safe, zero egress.",
+  "personality": "Methodical, performance-minded.", "skills": ["pgvector", "graph-schema", "vision"], "voice": ""},
+ {"id": "mortar", "name": "Mortar", "role": "Local Data & RAG/Graph", "zone": "phi",
+  "model": "gemma4:e4b (local)", "color": "#E07B7B", "rate": "", "setup": "",
+  "bio": "Local document ingestion, qwen3-embedding 1024-d vectors, hybrid retrieval knowledge base.",
+  "personality": "Steady, detail-locked.", "skills": ["ocr-and-documents", "rag-pipeline"], "voice": ""},
+ {"id": "quill", "name": "Quill", "role": "Local PHI Writer & Extraction", "zone": "phi",
+  "model": "gemma4:e4b (local)", "color": "#FF9E9E", "rate": "", "setup": "",
+  "bio": "PHI document drafting, template filling and compliance review - strictly local-only.",
+  "personality": "Careful, compliant.", "skills": ["docx-template-filling", "entity-extraction"], "voice": ""},
+ {"id": "steward", "name": "Steward", "role": "Personal Assistant - Email, Docs & Agent Router", "zone": "phi",
+  "model": "gemma4:e4b (local)", "color": "#D95F60", "rate": "", "setup": "",
+  "bio": "Email triage, document processing, schedule management and agent task routing.",
+  "personality": "Organized, proactive.", "skills": ["email-inbox-triage", "agent-routing"], "voice": ""},
+ {"id": "nova", "name": "Nova", "role": "Microsoft 365 Copilot Agent", "zone": "external",
+  "model": "M365 Copilot (cloud)", "color": "#8E9AB2", "rate": "", "setup": "",
+  "bio": "M365-grounded assistance across Teams, Outlook, SharePoint and OneDrive.",
+  "personality": "Connected, efficient.", "skills": ["meeting-summarization", "document-drafting"], "voice": ""},
+]
+
 SKIP_DIRS = {".git", "node_modules", "__pycache__", "dist", "tts_cache", ".research", "assets"}
 SKIP_EXT = {".pyc", ".mp3"}
 
@@ -106,22 +149,29 @@ def _is_authed(handler):
 
 # ---- keyword -> agent ownership (for activity + right-panel files) ----
 AGENT_FILE_MAP = [
-    ("amara",  ["contract", "invoice", "email", "docx", "sop", "followup", "follow-up", "meeting"]),
-    ("thabo",  ["research", "market", "pricing", "competitor", "source", "abacus", "oracle", "region", "scan"]),
-    ("liam",   ["content", "seo", "blog", "copy", "editorial", "storyboard"]),
-    ("naledi", ["support", "success", "faq", "playbook", "buy-in", "onboard", "csat"]),
-    ("marcus", ["data", "dashboard", "report", "ops", "ledger", "cashflow", "forecast", "csv", "xlsx"]),
-    ("duo",    ["relay", "app", "agent", "code", "build", "deploy", "migrat", "vps", "verify", "watchdog", "script", "payfast", "stripe"]),
+    ("solari1", ["multica", "watcher", "registry", "soul", "board", "agents.yaml", "card"]),
+    ("atlas",   ["research", "market", "pricing", "competitor", "brief", "scan", "pipeline-design"]),
+    ("lyra",    ["extract", "citation", "rag-format", "humanized", "structured"]),
+    ("orion",   ["dcc-extension", "pr-", "review", "test-suite", "refactor"]),
+    ("anvil",   ["pgvector", "graph-traversal", "sql", "hnsw", "schema"]),
+    ("mortar",  ["kb-index", "embedding", "ingest", "vector", "corpus"]),
+    ("quill",   ["sop", "qm-clinical", "template", "compliance"]),
+    ("steward", ["triage", "route-log", "inbox", "weekly-plan", "email"]),
+    ("nova",    ["teams", "sharepoint", "m365", "copilot", "outlook"]),
 ]
 def file_owner(name):
     n = name.lower()
     for agent, kws in AGENT_FILE_MAP:
         if any(k in n for k in kws):
             return agent
-    return "amara"  # default to the EA (general ops)
+    return "solari1"  # default to the CoS (general ops)
 
 # ---- agent parsing (from agents.js — the single source of truth) ----
 def parse_agents():
+    # v7.1: LOCAL (Windows) = Quro team ops room - serve the real Solari1 team.
+    # VPS (Linux) = the Atrium product - keep parsing agents.js as before.
+    if IS_WINDOWS:
+        return [dict(a) for a in QURO_AGENTS]
     if not os.path.exists(AGENTS_JS):
         return []
     src = open(AGENTS_JS, encoding="utf-8").read()
@@ -929,7 +979,8 @@ def build_graph(files, agents):
     nodes = []
     for a in agents:
         nodes.append({"id": "agent:" + a["id"], "type": "agent", "label": a["name"],
-                      "agent": a["id"], "owner": None, "role": a["role"], "rate": a["rate"]})
+                      "agent": a["id"], "owner": None, "role": a["role"], "rate": a["rate"],
+                      "zone": a.get("zone", ""), "color": a.get("color", ""), "model": a.get("model", "")})
     # file nodes (id by full path — unique) + basename -> [ids] for reference linking
     path_id, basename_ids = {}, {}
     for f in files:
