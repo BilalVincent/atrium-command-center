@@ -1338,7 +1338,7 @@ function computeLayout(){
   const hubPos = {};
   agents.forEach((a,i)=>{
     const ang = (i/agents.length)*Math.PI*2 - Math.PI/2;
-    hubPos[a.id] = { x: Math.cos(ang)*agentRingR, y: Math.sin(ang)*agentRingR*0.82 };
+    hubPos[a.id] = { x: Math.cos(ang)*agentRingR, y: Math.sin(ang)*agentRingR*0.82, z: 0 };
   });
 
   // satellites grouped per hub
@@ -1381,18 +1381,22 @@ function computeLayout(){
       const base = (hashStr(n.id) % 1000) / 1000 * Math.PI*2;      // seeded offset
       const ang = base + (onRing/count)*Math.PI*2;
       const jr = 3 + (hashStr(n.id+'|j') % 7);                     // tiny jitter
-      layout[n.id] = { x: c.x + Math.cos(ang)*(rr+jr), y: c.y + Math.sin(ang)*(rr+jr)*0.92 };
+      layout[n.id] = { x: c.x + Math.cos(ang)*(rr+jr), y: c.y + Math.sin(ang)*(rr+jr)*0.92, z: 0 };
     });
   });
-  agents.forEach(a=>{ layout[a.id] = hubPos[a.id]; });
+  agents.forEach(a=>{ layout[a.id] = hubPos[a.id]; });   // hubPos carries z:0
 
-  // neutral outer belt for unowned nodes (cron, orphan profiles, misc)
+  // neutral outer BELT (annulus, not a circle) for unowned nodes — skills,
+  // conversations, profiles, cron. Spread over a band so 1000+ nodes read as
+  // a star field rather than a solid ring.
   if(loose.length){
-    const beltR = agentRingR + 170 + 2.2*Math.sqrt(loose.length);
+    const beltR0 = agentRingR + 130;
+    const bandW = 60 + 14*Math.sqrt(loose.length);          // band grows with population
     loose.forEach((n,i)=>{
-      const base = (hashStr(n.id) % 1000) / 1000 * Math.PI*2;
-      const ang = base + (i/loose.length)*Math.PI*2;
-      layout[n.id] = { x: Math.cos(ang)*beltR, y: Math.sin(ang)*beltR*0.85 };
+      const base = (hashStr(n.id) % 1000) / 1000;
+      const ang = base*Math.PI*2 + (i/loose.length)*Math.PI*2;
+      const rr = beltR0 + (hashStr(n.id+'|r') % 1000)/1000 * bandW;
+      layout[n.id] = { x: Math.cos(ang)*rr, y: Math.sin(ang)*rr*0.85, z: 0 };
     });
   }
 
@@ -1422,7 +1426,7 @@ const PHYS = { repel: 1.0, link: 1.0, active: false, cool: 0, home: {} };
 function physicsWake(){ PHYS.active = true; PHYS.cool = 0; }
 function physicsHomeSnapshot(){
   PHYS.home = {};
-  for(const id in layout) PHYS.home[id] = { x: layout[id].x, y: layout[id].y };
+  for(const id in layout) PHYS.home[id] = { x: layout[id].x, y: layout[id].y, z: 0 };
 }
 function physicsStep(){
   if(!PHYS.active || nodes.length<3) return;
@@ -1466,6 +1470,7 @@ function physicsStep(){
     const anchor = 0.10 + (hd/MAX_DRIFT)*0.22;
     p.x += f.x*0.82 - hx*anchor;
     p.y += f.y*0.82 - hy*anchor;
+    if(typeof p.z !== 'number' || !isFinite(p.z)) p.z = 0;
     KE += f.x*f.x + f.y*f.y;
   }
   PHYS.cool = KE > 0.25 ? 0 : PHYS.cool + 1;
@@ -1529,7 +1534,14 @@ function rotate3(x,y,z,rx,ry){
   return {x:x1, y:y1, z:z2};
 }
 const FOCAL = 560;
-function worldPos(id){ const p = layout[id] || {x:0,y:0,z:0}; return rotate3(p.x,p.y,p.z,rotX,rotY); }
+function worldPos(id){
+  /* v8.0.1 FIX: the flat atlas stores {x,y} only — a missing z used to enter
+     rotate3 as undefined and poison every projection with NaN (nodes invisible
+     while the cx/cy-drawn glow + label still rendered). Default z to 0. */
+  const p = layout[id] || {x:0,y:0,z:0};
+  const z = (typeof p.z === 'number' && isFinite(p.z)) ? p.z : 0;
+  return rotate3(p.x, p.y, z, rotX, rotY);
+}
 function project(x,y,z){ const s = FOCAL/(FOCAL+z) * cam.zoom; return {x: cx + x*s + cam.tx, y: cy + y*s + cam.ty, s}; }
 
 function isReadableNode(n){
