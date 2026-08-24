@@ -100,6 +100,30 @@ canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touc
 .zoom-out{position:absolute;top:14px;right:16px;z-index:8;background:rgba(42,38,32,.6);border:1px solid rgba(176,141,87,.4);color:var(--gold-pale);border-radius:999px;padding:7px 14px;font-size:11px;font-weight:700;letter-spacing:.04em;backdrop-filter:blur(4px);transition:all .15s ease}
 .zoom-out:hover{background:rgba(176,141,87,.25);color:#fff}
 .zoom-out[hidden]{display:none}
+/* v7.0 GRAPH CONSOLE — live physics/display controls for the 3D brain (ref: AI Workshop OS) */
+.graph-console{position:absolute;right:16px;bottom:16px;z-index:22;width:216px;background:rgba(24,20,14,.9);border:1px solid rgba(176,141,87,.35);border-radius:12px;backdrop-filter:blur(10px);overflow:hidden;box-shadow:0 8px 28px rgba(0,0,0,.45)}
+.gc-head{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;background:none;border:0;cursor:pointer;color:#E7DAC2;font:800 9.5px Montserrat,Inter,sans-serif;letter-spacing:.16em;text-transform:uppercase;text-align:left}
+.gc-head:hover{background:rgba(176,141,87,.12)}
+.gc-title{flex:0 0 auto}
+.gc-nodes{flex:1;text-align:right;color:rgba(231,218,194,.55);font-weight:600;letter-spacing:.03em;text-transform:none;font-size:9px}
+.gc-chev{transition:transform .25s;color:var(--gold,#B08D57)}
+.graph-console.collapsed .gc-chev{transform:rotate(-90deg)}
+.gc-body{padding:2px 12px 12px;display:flex;flex-direction:column;gap:8px}
+.graph-console.collapsed .gc-body{display:none}
+.gc-sec{font:800 8.5px Montserrat,Inter,sans-serif;letter-spacing:.2em;text-transform:uppercase;color:rgba(176,141,87,.8);margin-top:4px}
+.gc-lr{display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:#E7DAC2;margin-bottom:3px}
+.gc-val{color:#E8CFA0;font-weight:800}
+.gc-slider input[type=range]{width:100%;height:3px;-webkit-appearance:none;appearance:none;background:rgba(176,141,87,.3);border-radius:2px;outline:none;cursor:pointer;margin:4px 0 0}
+.gc-slider input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--gold,#B08D57);border:2px solid #E8CFA0;box-shadow:0 0 8px rgba(176,141,87,.6)}
+.gc-slider input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--gold,#B08D57);border:2px solid #E8CFA0}
+.gc-tog{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:600;color:#E7DAC2;cursor:pointer;user-select:none}
+.gc-tog input{display:none}
+.gc-box{width:14px;height:14px;flex:0 0 auto;border-radius:4px;border:1px solid rgba(176,141,87,.55);background:rgba(42,38,32,.6);position:relative;transition:background .15s,border-color .15s}
+.gc-tog input:checked + .gc-box{background:var(--gold,#B08D57);border-color:var(--gold,#B08D57)}
+.gc-tog input:checked + .gc-box::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:900;color:#14110D}
+.hud-filter .fcount{margin-left:5px;font-weight:800;color:rgba(231,218,194,.55)}
+.hud-filter.active .fcount{color:#14110D}
+@media (max-width:900px){.graph-console{display:none}}
 .orbit-search{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:8;pointer-events:auto}
 .orbit-search .os-wrap{position:relative;display:flex;align-items:center}
 .orbit-search .os-ic{position:absolute;left:10px;color:var(--ink-mute);font-size:14px;pointer-events:none}
@@ -781,7 +805,12 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
 .cmdk-meta{display:block;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:#B08D57;margin-top:2px}
 .cmdk-snippet{display:block;font-size:11px;color:rgba(233,228,216,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
 #cmdkHints{padding:8px 16px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(176,141,87,.75);border-top:1px solid rgba(217,185,120,.18)}
-@media (max-width:600px){ #cmdkPanel{margin-top:8vh} }
+/* v6.9.1 council fixes: touch entry chip + iOS 16px input */
+.orbit-search input{padding-right:54px}
+#cmdkChip{position:absolute;right:7px;top:50%;transform:translateY(-50%);height:26px;padding:0 9px;display:flex;align-items:center;justify-content:center;appearance:none;background:rgba(12,11,8,.6);border:1px solid rgba(176,141,87,.35);border-radius:999px;color:#E7DAC2;font-family:inherit;font-size:10px;font-weight:700;letter-spacing:.08em;cursor:pointer;z-index:5}
+#cmdkChip:hover{border-color:rgba(176,141,87,.65);color:#fff}
+#cmdkChip:focus-visible{box-shadow:0 0 0 3px rgba(176,141,87,.35);outline:none}
+@media (max-width:600px){ #cmdkPanel{margin-top:8vh} #cmdkInput{font-size:16px} #cmdkChip{height:32px} }
 </style>
 </head>
 <body>
@@ -835,6 +864,7 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
       <div class="os-wrap">
         <span class="os-ic">⌕</span>
         <input id="orbitSearchInput" placeholder="Search memory…" autocomplete="off">
+        <button id="cmdkChip" type="button" aria-label="Search everything (Ctrl K)" title="Search everything (Ctrl+K)">⌘K</button>
       </div>
       <div class="search-dropdown" id="searchDropdown"></div>
     </div>
@@ -861,11 +891,11 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
       <div id="profileFocus" class="profile-focus" style="display:none"></div>
     </div>
     <div class="zone-filters" id="hudFilters">
-      <button class="hud-filter active" data-filter="agents"><span class="fic">◉</span><span class="fl">Agents</span></button>
-      <button class="hud-filter" data-filter="chats"><span class="fic">💬</span><span class="fl">Chats</span></button>
-      <button class="hud-filter" data-filter="cron"><span class="fic">⏱</span><span class="fl">Cron</span></button>
-      <button class="hud-filter" data-filter="files"><span class="fic">📁</span><span class="fl">Files</span></button>
-      <button class="hud-filter" data-filter="memory"><span class="fic">🧠</span><span class="fl">Memory</span></button>
+      <button class="hud-filter active" data-filter="agents"><span class="fic">◉</span><span class="fl">Agents</span><span class="fcount" data-count="agents">—</span></button>
+      <button class="hud-filter" data-filter="chats"><span class="fic">💬</span><span class="fl">Chats</span><span class="fcount" data-count="chats">—</span></button>
+      <button class="hud-filter" data-filter="cron"><span class="fic">⏱</span><span class="fl">Cron</span><span class="fcount" data-count="cron">—</span></button>
+      <button class="hud-filter" data-filter="files"><span class="fic">📁</span><span class="fl">Files</span><span class="fcount" data-count="files">—</span></button>
+      <button class="hud-filter" data-filter="memory"><span class="fic">🧠</span><span class="fl">Memory</span><span class="fcount" data-count="memory">—</span></button>
     </div>
     <div class="directives" style="display:none">
       <div class="rail-sec"><span>Directives <b>TOP 3</b></span><span style="font-size:9px">board</span></div>
@@ -892,6 +922,19 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
       <div class="scene-tip" id="sceneTip">Drag to rotate · scroll to zoom · click a memory node to read</div>
       <button class="zoom-out" id="zoomOut" hidden>⌕ Zoom out</button>
       <div class="legend" id="legend"></div>
+      <div class="graph-console" id="graphConsole" role="group" aria-label="Graph controls">
+        <button class="gc-head" id="gcHead" aria-expanded="true"><span class="gc-title">Graph Console</span><span class="gc-nodes" id="gcNodes">—</span><span class="gc-chev">▾</span></button>
+        <div class="gc-body" id="gcBody">
+          <div class="gc-sec">Forces</div>
+          <div class="gc-slider"><div class="gc-lr"><span>Repel</span><span class="gc-val" id="gcRepelVal">1.0×</span></div><input type="range" id="gcRepel" min="20" max="300" value="100" step="5" aria-label="Repel force"></div>
+          <div class="gc-slider"><div class="gc-lr"><span>Link length</span><span class="gc-val" id="gcLinkVal">1.0×</span></div><input type="range" id="gcLink" min="40" max="260" value="100" step="5" aria-label="Link length"></div>
+          <div class="gc-sec">Display</div>
+          <label class="gc-tog"><input type="checkbox" id="gcHub" checked><span class="gc-box"></span>Hub labels</label>
+          <label class="gc-tog"><input type="checkbox" id="gcPulse" checked><span class="gc-box"></span>Particle flow</label>
+          <label class="gc-tog"><input type="checkbox" id="gcRotate" checked><span class="gc-box"></span>Auto-rotate</label>
+          <label class="gc-tog"><input type="checkbox" id="gcStars" checked><span class="gc-box"></span>Starfield</label>
+        </div>
+      </div>
       <div class="brief" id="briefPanel">
         <div class="brief-head"><span class="bt">◆ Memory Brief</span><button class="bx" id="briefClose" title="Dismiss">✕</button></div>
         <div class="brief-body" id="briefBody"></div>
@@ -1397,6 +1440,66 @@ function computeLayout(){
 }
 
 /* ============================================================
+   v7.0 LIVE PHYSICS — continuous force simulation driven by the
+   Graph Console sliders (Repel / Link length). Same force model
+   as computeLayout's settle pass, but running a few iterations
+   per frame so dragging a slider visibly re-forms the brain.
+   Pauses automatically once kinetic energy settles (perf), and
+   re-arms on slider input. Never touches the deterministic
+   computeLayout() result — it only refines from it.
+   ============================================================ */
+const PHYS = { repel: 1.0, link: 1.0, active: false, cool: 0 };
+function physicsWake(){ PHYS.active = true; PHYS.cool = 0; }
+function physicsStep(){
+  if(!PHYS.active || !G.edges || !G.edges.length || nodes.length<3) return;
+  const list = nodes.filter(n=> layout[n.id]);
+  const idx = {}; list.forEach((n,i)=> idx[n.id]=i);
+  const pos = list.map(n=> layout[n.id]);
+  const edges = G.edges.filter(e=> idx[e.source]!=null && idx[e.target]!=null);
+  const K_REP = 0.0009 * PHYS.repel;          // scaled for per-frame steps
+  const K_EDGE = { owns:0.006, refs:0.0045, mentions:0.005, maps:0.004 };
+  const REP_CUT = 46;
+  const acc = pos.map(()=>({x:0,y:0,z:0}));
+  // repulsion: sampled pairs (grid-free, capped) so a frame stays <2ms
+  const STRIDE = Math.max(1, Math.ceil(list.length/140));
+  for(let i=0;i<pos.length;i++){
+    for(let j=i+STRIDE;j<pos.length;j+=STRIDE*3){
+      let dx=pos[i].x-pos[j].x, dy=pos[i].y-pos[j].y, dz=pos[i].z-pos[j].z;
+      const d2 = dx*dx+dy*dy+dz*dz;
+      if(d2 >= REP_CUT*REP_CUT || d2 < 1e-8) continue;
+      const d = Math.sqrt(d2);
+      let f = K_REP*(REP_CUT-d)/d*8; if(f>1.6) f=1.6;
+      dx*=f; dy*=f; dz*=f;
+      acc[i].x+=dx; acc[i].y+=dy; acc[i].z+=dz;
+      acc[j].x-=dx; acc[j].y-=dy; acc[j].z-=dz;
+    }
+  }
+  // springs along real edges; link-length slider sets the REST length
+  const REST = 14 * PHYS.link;
+  for(const e of edges){
+    const a = pos[idx[e.source]], b = pos[idx[e.target]];
+    const fa = acc[idx[e.source]], fb = acc[idx[e.target]];
+    let dx = b.x-a.x, dy = b.y-a.y, dz = b.z-a.z;
+    const d = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1e-4;
+    const kk = K_EDGE[e.kind] || 0.0045;
+    let pull = kk*(d-REST)*0.5; if(pull>1.2) pull=1.2; if(pull<-1.2) pull=-1.2;
+    dx/=d; dy/=d; dz/=d;
+    fa.x+=dx*pull; fa.y+=dy*pull; fa.z+=dz*pull;
+    fb.x-=dx*pull; fb.y-=dy*pull; fb.z-=dz*pull;
+  }
+  // integrate with damping + gentle anchor back to the settled layout
+  let KE = 0;
+  const DAMP = 0.82, ANCHOR = 0.012;
+  for(let i=0;i<pos.length;i++){
+    const p = pos[i], f = acc[i];
+    p.x += f.x*DAMP; p.y += f.y*DAMP; p.z += f.z*DAMP;
+    KE += f.x*f.x + f.y*f.y + f.z*f.z;
+  }
+  PHYS.cool = KE > 0.4 ? 0 : PHYS.cool + 1;
+  if(PHYS.cool > 90) PHYS.active = false;   // settled — stop burning frames
+}
+
+/* ============================================================
    CAMERA / PROJECTION
    ============================================================ */
 const canvas = $('#scene'), ctx = canvas.getContext('2d');
@@ -1626,7 +1729,8 @@ wrap.addEventListener('pointercancel', e=>{
    ============================================================ */
 function frame(now){
   const t = now/1000;
-  if(autoRot) rotY += selected.id ? 0.00012 : 0.00025;   // v6.6: drift halves when focused
+  if(autoRot && GC.rotate) rotY += selected.id ? 0.00012 : 0.00025;   // v6.6: drift halves when focused · v7.0: toggleable
+  physicsStep();                                                       // v7.0: live force sim (console-driven)
   cam.zoom += (cam.tz - cam.zoom)*0.09;
   cam.tx += (cam.ttx - cam.tx)*0.09;
   cam.ty += (cam.tty - cam.ty)*0.09;
@@ -1640,7 +1744,7 @@ function frame(now){
   const cor = ctx.createRadialGradient(cx,cy,0,cx,cy,120);
   cor.addColorStop(0,'rgba(217,185,120,.18)'); cor.addColorStop(.5,'rgba(176,141,87,.06)'); cor.addColorStop(1,'rgba(176,141,87,0)');
   ctx.fillStyle=cor; ctx.beginPath(); ctx.arc(cx,cy,120,0,Math.PI*2); ctx.fill();
-  for(const p of particles){
+  if(GC.stars) for(const p of particles){
     const sx = ((p.x*0.5+0.5)*W + Math.sin(t*p.sp+p.tw)*10);
     const sy = ((p.y*0.5+0.5)*H + Math.cos(t*p.sp+p.tw)*10);
     let a = (0.12 + 0.35*Math.abs(Math.sin(t*p.sp+p.tw))*p.z);
@@ -1662,8 +1766,10 @@ function frame(now){
   const hub = ctx.createRadialGradient(cx,cy,0,cx,cy,46);
   hub.addColorStop(0,'rgba(217,185,120,.22)'); hub.addColorStop(1,'rgba(217,185,120,0)');
   ctx.fillStyle=hub; ctx.beginPath(); ctx.arc(cx,cy,46,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='rgba(232,207,160,.75)'; ctx.font='800 9px Montserrat, Inter, sans-serif'; ctx.textAlign='center';
-  ctx.fillText('A.I.O.S.', cx, cy + 58);
+  if(GC.hubLabels){
+    ctx.fillStyle='rgba(232,207,160,.75)'; ctx.font='800 9px Montserrat, Inter, sans-serif'; ctx.textAlign='center';
+    ctx.fillText('A.I.O.S.', cx, cy + 58);
+  }
 
   // team ring (agents form the center)
   ctx.strokeStyle='rgba(176,141,87,.16)'; ctx.lineWidth=1; ctx.setLineDash([4,6]);
@@ -1696,9 +1802,9 @@ function frame(now){
   }
   ctx.setLineDash([]);
 
-  // fast node-to-node activity pulses along edges
+  // fast node-to-node activity pulses along edges (v7.0: toggleable)
   pulseTimer += 0.016;
-  if(pulseTimer > 0.34){
+  if(GC.pulse && pulseTimer > 0.34){
     pulseTimer = 0;
     const hot = G.edges.filter(e=> hotFiles.has(e.source) || hotFiles.has(e.target));
     const pool = hot.length ? hot : G.edges;
@@ -2885,11 +2991,80 @@ setInterval(fetchState, 8000);
 requestAnimationFrame(frame);
 
 /* ============================================================
+   v7.0 GRAPH CONSOLE — physics sliders, display toggles, live
+   category counts (ref: AI Workshop OS 3D brain). Additive:
+   reads/writes GC + PHYS only; touches no existing state.
+   ============================================================ */
+const GC = { hubLabels:true, pulse:true, rotate:true, stars:true, countsDone:false };
+(function(){
+  const $id = id => document.getElementById(id);
+  const repel = $id('gcRepel'), link = $id('gcLink');
+  const rVal = $id('gcRepelVal'), lVal = $id('gcLinkVal');
+  if(!repel || !link) return;
+  // restore last session's settings
+  try{
+    const saved = JSON.parse(localStorage.getItem('ccGraphConsole')||'{}');
+    if(saved.repel){ PHYS.repel=saved.repel; repel.value=Math.round(saved.repel*100); rVal.textContent=saved.repel.toFixed(1)+'×'; }
+    if(saved.link){ PHYS.link=saved.link; link.value=Math.round(saved.link*100); lVal.textContent=saved.link.toFixed(1)+'×'; }
+    ['hubLabels','pulse','rotate','stars'].forEach(k=>{
+      if(typeof saved[k]==='boolean'){
+        GC[k]=saved[k];
+        const box=$id('gc'+k[0].toUpperCase()+k.slice(1)); if(box) box.checked=saved[k];
+      }
+    });
+  }catch(e){}
+  repel.addEventListener('input', ()=>{
+    PHYS.repel = repel.value/100;
+    rVal.textContent = PHYS.repel.toFixed(1)+'×';
+    physicsWake();
+    gcSave();
+  });
+  link.addEventListener('input', ()=>{
+    PHYS.link = link.value/100;
+    lVal.textContent = PHYS.link.toFixed(1)+'×';
+    physicsWake();
+    gcSave();
+  });
+  function gcSave(){
+    try{ localStorage.setItem('ccGraphConsole', JSON.stringify({repel:PHYS.repel, link:PHYS.link, hubLabels:GC.hubLabels, pulse:GC.pulse, rotate:GC.rotate, stars:GC.stars})); }catch(e){}
+  }
+  [['gcHub','hubLabels'],['gcPulse','pulse'],['gcRotate','rotate'],['gcStars','stars']].forEach(([elId,key])=>{
+    const box = $id(elId); if(!box) return;
+    box.addEventListener('change', ()=>{ GC[key]=box.checked; gcSave(); });
+  });
+  const head = $id('gcHead'), panel = $id('graphConsole');
+  if(head && panel) head.addEventListener('click', ()=>{
+    const c = panel.classList.toggle('collapsed');
+    head.setAttribute('aria-expanded', String(!c));
+  });
+})();
+
+/* v7.0: live category counts on the zone filters (like the reference
+   OS's filter panel — Agents 7 · Files 98 · …). Recomputed on each
+   /state tick; cheap DOM text writes, no re-render. */
+function updateFilterCounts(){
+  const c = { agents:agentNodes.length, chats:agentNodes.filter(n=>chatHist[n.agent]&&chatHist[n.agent].length>1).length,
+              cron:(STATE.cron||[]).length, files:(STATE.files||[]).length,
+              memory:nodes.filter(n=>n.type==='memory').length };
+  document.querySelectorAll('.fcount').forEach(el=>{
+    const v = c[el.dataset.count]; if(v!=null) el.textContent = v;
+  });
+  const gn = document.getElementById('gcNodes');
+  if(gn) gn.textContent = nodes.length + ' nodes · ' + (G.edges ? G.edges.length : 0) + ' links';
+}
+(function(){
+  const orig = updateLiveBadge;
+  updateLiveBadge = function(ok){ orig(ok); try{ updateFilterCounts(); }catch(e){} };
+})();
+
+/* ============================================================
    v6.9: B-02 COMMAND PALETTE (Cmd/Ctrl+K) — keyboard jump over live /search.
    Additive; capture-phase keys shield the L1547 Esc deselect while open.
    ============================================================ */
 function __cmdkInit(){
 if(window.__cmdkBound) return; window.__cmdkBound=1;
+/* capture at DOCUMENT: runs before window-level bubble handlers (L1547 Esc-deselect)
+   for every real keystroke, so Esc-while-open can shield it cleanly. */
 const ov=document.getElementById('cmdkOverlay'), input=document.getElementById('cmdkInput'),
       statusEl=document.getElementById('cmdkStatus'), listEl=document.getElementById('cmdkResults');
 if(!ov||!input||!statusEl||!listEl) return;
@@ -2904,15 +3079,14 @@ function setActive(i){
   Array.prototype.forEach.call(listEl.children, function(el,idx){ el.classList.toggle('active', idx===activeIdx); });
   const el=listEl.children[activeIdx]; if(el && el.scrollIntoView){ try{ el.scrollIntoView({block:'nearest'}); }catch(e){} }
 }
-function renderCmdk(results){
+function renderCmdk(results, q){
   clearRows();
-  const q=input.value.trim();
-  if(!results.length){ setStatus('Nothing found for "'+q+'"'); return; }
+  if(!results.length){ setStatus('Nothing found for "'+(q||input.value.trim())+'"'); return; }
   setStatus(null);
   listEl.innerHTML=results.map(function(r,i){
     const badge=(r.type||'memory').toUpperCase();
     return '<div class="cmdk-row" data-i="'+i+'">'
-      +'<span class="cmdk-dot" style="background:'+rowColor(r)+'"></span>'
+      +'<span class="cmdk-dot" style="background:'+esc(rowColor(r))+'"></span>'
       +'<span class="cmdk-body"><span class="cmdk-title">'+esc(r.name)+'</span>'
       +'<span class="cmdk-meta">'+esc(badge)+' · '+esc((r.zone||'').toUpperCase())+' · '+Math.round((r.score||0)*100)+'%</span>'
       +'<span class="cmdk-snippet">'+esc((r.snippet||'').slice(0,140))+'</span></span>'
@@ -2934,21 +3108,23 @@ function activate(r){
 function runCmdkSearch(q){
   if(!q.trim()){ clearRows(); setStatus(null); return; }
   if(cmdkAbort){ try{ cmdkAbort.abort(); }catch(e){} }
-  let aborted=false; cmdkAbort={ abort:function(){ aborted=true; } };
+  const ctl=('AbortController' in window)?new AbortController():null;
+  cmdkAbort=ctl||{abort:function(){}};
   const seq=++cmdkSeq;
   setStatus('Searching memory…');
-  fetch('/search?q='+encodeURIComponent(q))
+  fetch('/search?q='+encodeURIComponent(q), ctl?{signal:ctl.signal}:undefined)
     .then(function(r){
       if(r.status===401){ window.showGate && window.showGate(); throw new Error('auth'); }
       if(!r.ok) throw new Error(r.status);
       return r.json();
     })
     .then(function(d){
-      if(aborted || seq!==cmdkSeq) return;
-      renderCmdk(d.results||[]);
+      if(seq!==cmdkSeq || input.value.trim()!==q) return;
+      renderCmdk(d.results||[], q);
     })
     .catch(function(err){
-      if(aborted || seq!==cmdkSeq) return;
+      if(seq!==cmdkSeq) return;
+      if(err && err.name==='AbortError') return;
       if(err && err.message==='auth') return;
       console.warn('cmdk search failed', err);
       setStatus("Couldn't reach memory right now.");
@@ -2969,7 +3145,7 @@ function openCmdk(){
   ov.classList.add('open');
   input.focus(); if(input.value) input.select();
 }
-window.addEventListener('keydown', function(e){
+document.addEventListener('keydown', function(e){
   if((e.ctrlKey||e.metaKey) && String(e.key).toLowerCase()==='k'){
     e.preventDefault();
     if(ov.classList.contains('open')) closeCmdk(); else openCmdk();
@@ -2990,6 +3166,9 @@ input.addEventListener('input', function(){
   cmdkTimer=setTimeout(function(){ runCmdkSearch(q); }, 250);
 });
 ov.addEventListener('mousedown', function(e){ if(e.target===ov){ closeCmdk(); } });
+window.__cmdkOpen=openCmdk; window.__cmdkClose=closeCmdk;
+const cmdkChip=document.getElementById('cmdkChip');
+if(cmdkChip){ cmdkChip.addEventListener('click', function(){ openCmdk(); }); }
 }
 if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', __cmdkInit); } else { __cmdkInit(); }
 </script>
