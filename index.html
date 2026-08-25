@@ -97,9 +97,7 @@ canvas#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touc
 .hud-tag b{color:var(--gold-bright);font-weight:800}
 .scene-tip{position:absolute;top:14px;left:50%;transform:translateX(-50%);font-size:10.5px;color:var(--gold-pale);letter-spacing:.04em;background:rgba(42,38,32,.5);border-radius:999px;padding:5px 14px;opacity:0;transition:opacity .4s ease;pointer-events:none;z-index:5;white-space:nowrap}
 .scene-tip.show{opacity:1}
-.zoom-out{position:absolute;top:14px;right:16px;z-index:8;background:rgba(42,38,32,.6);border:1px solid rgba(176,141,87,.4);color:var(--gold-pale);border-radius:999px;padding:7px 14px;font-size:11px;font-weight:700;letter-spacing:.04em;backdrop-filter:blur(4px);transition:all .15s ease}
-.zoom-out:hover{background:rgba(176,141,87,.25);color:#fff}
-.zoom-out[hidden]{display:none}
+
 /* v7.0 GRAPH CONSOLE — live physics/display controls for the 3D brain (ref: AI Workshop OS) */
 .graph-console{position:relative;margin:10px 12px 2px;width:auto;background:rgba(20,17,13,.92);border:1px solid rgba(176,141,87,.32);border-radius:12px;backdrop-filter:blur(10px);overflow:hidden;box-shadow:none}
 .gc-head{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;background:none;border:0;cursor:pointer;color:#E7DAC2;font:800 9.5px Montserrat,Inter,sans-serif;letter-spacing:.16em;text-transform:uppercase;text-align:left}
@@ -439,23 +437,9 @@ body{background:#0C0B08;color:var(--ink)}
 .mem-zone-h{display:flex;align-items:center;gap:7px;padding:8px 12px 4px;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--ink-mute)}
 .mem-zone-h .zdot{width:8px;height:8px;border-radius:50%}
 .mem-zone-h .zc{color:var(--ink-soft);font-weight:700}
-/* ---- memory brief (floating) ---- */
-.brief{position:absolute;top:56px;right:18px;width:300px;max-width:88vw;z-index:30;background:rgba(20,17,13,.94);border:1px solid rgba(217,185,120,.4);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.55);backdrop-filter:blur(8px);overflow:hidden;display:none;animation:briefIn .3s cubic-bezier(.2,.9,.3,1.15)}
-.brief.show{display:block}
+/* v9.3: floating Memory Brief panel REMOVED per Vincent (2026-08-25).
+   briefIn keyframes kept below — .profile-focus still animates with it. */
 @keyframes briefIn{from{opacity:0;transform:translateY(-10px) scale(.97)}to{opacity:1;transform:none}}
-.brief-head{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(176,141,87,.22),transparent)}
-.brief-head .bt{font-size:10px;letter-spacing:.16em;font-weight:800;text-transform:uppercase;color:var(--gold-bright)}
-.brief-head .bx{width:22px;height:22px;border-radius:50%;border:1px solid var(--line-strong);background:transparent;color:var(--ink-mute);font-size:11px;line-height:1}
-.brief-head .bx:hover{background:rgba(176,141,87,.2);color:var(--gold-bright)}
-.brief-body{padding:10px 14px 12px;max-height:300px;overflow-y:auto}
-.brief-item{margin-bottom:10px}
-.brief-item:last-child{margin-bottom:0}
-.brief-item .bh{font-size:10px;letter-spacing:.12em;font-weight:800;text-transform:uppercase;color:var(--ink-mute);margin-bottom:3px}
-.brief-item .bn{font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.3;margin-bottom:3px}
-.brief-item .bp{font-size:11px;color:var(--ink-soft);line-height:1.45;max-height:52px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-.brief-item .bo{margin-top:5px;display:flex;gap:6px}
-.brief-item .bo button{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--gold-bright);background:rgba(176,141,87,.18);border:1px solid rgba(176,141,87,.4);border-radius:999px;padding:4px 10px}
-.brief-item .bo button:hover{background:var(--gold);color:#FFFFFF}
 /* ---- zone legend (scene bottom-left) ---- */
 .legend{position:absolute;left:16px;bottom:16px;z-index:20;display:flex;flex-direction:column;gap:5px;background:rgba(14,12,9,.7);border:1px solid rgba(232,207,160,.2);border-radius:12px;padding:9px 12px;backdrop-filter:blur(4px)}
 .legend .lg{display:flex;align-items:center;gap:7px;font-size:9.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)}
@@ -490,7 +474,7 @@ body{background:#0C0B08;color:var(--ink)}
 .glass,
 .profiles, .directives, .documents, .calendar,
 .right,
-.legend, .search-dropdown, .brief, .guide{
+.legend, .search-dropdown, .guide{
   background:rgba(250,247,240,.055);
   backdrop-filter:blur(22px) saturate(150%);
   -webkit-backdrop-filter:blur(22px) saturate(150%);
@@ -668,11 +652,7 @@ body{background:#0C0B08;color:var(--ink)}
   .dash-close{min-height:40px;padding:8px 14px;font-size:11px}
   .task-actions .task-go{min-height:44px;width:100%}
 
-  .brief{position:fixed;inset:0;width:100vw;max-width:none;height:100dvh;border-radius:0;top:0;right:0;z-index:90}
-  .brief.show{display:flex;flex-direction:column}
-  .brief-head{flex:0 0 auto}
-  .brief-body{flex:1 1 auto;max-height:none;overflow-y:auto}
-  .brief-head .bx{width:40px;height:40px;font-size:15px}
+
 
   .search-dropdown{position:fixed;top:52px;left:0;right:0;bottom:0;width:auto;max-width:none;max-height:none;border-radius:0;border-left:none;border-right:none;z-index:85}
 
@@ -702,7 +682,7 @@ body{background:#0C0B08;color:var(--ink)}
 /* ============================================================
    v6.2: SPATIAL DECLUTTER — additive override; wins by source order.
    A. FOCUS hud geometry (never clipped by the centered search bar
-      or the zoom-out button). B. Corner cluster grouped as
+      or Esc). B. Corner cluster grouped as
       status | hairline | controls. C. Left rail decluttered.
    ============================================================ */
 /* A. FOCUS hud — safe breathing room; hud-right wraps below the
@@ -712,8 +692,7 @@ body{background:#0C0B08;color:var(--ink)}
 .hud-right{flex-wrap:wrap;justify-content:flex-end;min-width:0;max-width:100%}
 .hud-tag{white-space:nowrap}
 @media (max-width:1400px){ .hud-right{flex:1 0 100%} }
-/* zoom-out moves below the hud rows so it never covers the FOCUS pill */
-.zoom-out{top:100px}
+
 /* B. Corner cluster — v6.5 restored slim single-row (see v6.5 block
    above; v6.3's two-row glass panel removed per Vincent). */
 /* C. Left rail — directives/documents cards hidden (containers kept so
@@ -969,12 +948,7 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
         </span>
       </div>
       <div class="scene-tip" id="sceneTip">Drag to pan · scroll to zoom · click a node to read it</div>
-      <button class="zoom-out" id="zoomOut" hidden>⌕ Zoom out</button>
       <div class="legend" id="legend"></div>
-      <div class="brief" id="briefPanel">
-        <div class="brief-head"><span class="bt">◆ Memory Brief</span><button class="bx" id="briefClose" title="Dismiss">✕</button></div>
-        <div class="brief-body" id="briefBody"></div>
-      </div>
       <button class="ghost-btn" id="ghostBtn" title="Ask your guide" aria-label="Open guide">
         <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M32 12c15 0 21 10 21 22v7c0 3-1 6-4 7l-2 1c-1 3-3 5-6 6-2 1-5 1-8 1h-1c-4 0-8-1-11-3-3-1-5-4-5-8 0-3 2-6 5-7 7-3 15-3 21 0 1-2 1-4 0-6-3-2-7-3-10-3-14 0-20 8-20 19 0 7 3 13 9 17l-1 3c-2 2-3 5-2 8" stroke="#7C5F37" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -1336,6 +1310,13 @@ function computeLayout(){
 
   const agents = uniq.filter(n=>n.type==='agent').sort((a,b)=> a.id<b.id?-1:1);
   const agentRingR = 150 + 26*Math.sqrt(Math.max(agents.length,1));   // grows with team size
+  /* v9.3: console sliders reshape the atlas STRUCTURALLY. Repel spreads
+     satellite rings + the outer belt apart; Link length scales the spoke
+     (hub→satellite) distance. computeLayout() runs on every /state poll,
+     so slider settings survive re-layouts BY CONSTRUCTION — the old
+     per-node physics offsets were wiped by every poll, which is why the
+     console never seemed to do anything. */
+  const LINK = PHYS.link, SPREAD = 0.55 + 0.45*PHYS.repel;
   const hubPos = {};
   agents.forEach((a,i)=>{
     const ang = (i/agents.length)*Math.PI*2 - Math.PI/2;
@@ -1379,7 +1360,7 @@ function computeLayout(){
       const ring = Math.floor(i / perRing);
       const onRing = i % perRing;
       const count = Math.min(perRing, members.length - ring*perRing);
-      const rr = R0 + ring*DR + 3.2*Math.sqrt(Math.max(1,count));
+      const rr = R0*LINK + ring*DR*SPREAD + 3.2*Math.sqrt(Math.max(1,count))*SPREAD;
       const base = (hashStr(n.id) % 1000) / 1000 * Math.PI*2;      // seeded offset
       const ang = base + (onRing/count)*Math.PI*2;
       const jr = 3 + (hashStr(n.id+'|j') % 7);                     // tiny jitter
@@ -1392,8 +1373,8 @@ function computeLayout(){
   // conversations, profiles, cron. Spread over a band so 1000+ nodes read as
   // a star field rather than a solid ring.
   if(loose.length){
-    const beltR0 = agentRingR + 130;
-    const bandW = 60 + 14*Math.sqrt(loose.length);          // band grows with population
+    const beltR0 = agentRingR + 130*Math.max(LINK, SPREAD);
+    const bandW = (60 + 14*Math.sqrt(loose.length)) * SPREAD;  // band grows with population
     loose.forEach((n,i)=>{
       const base = (hashStr(n.id) % 1000) / 1000;
       const ang = base*Math.PI*2 + (i/loose.length)*Math.PI*2;
@@ -1425,10 +1406,29 @@ function computeLayout(){
      RE-APPLIED to any newly computed layout.
    ============================================================ */
 const PHYS = { repel: 1.0, link: 1.0, active: false, cool: 0, home: {} };
+/* v9.3: displacement map — the slider-implied offset per node. Survives
+   /state re-layouts (computeLayout() rebuilds layout from scratch every
+   poll where the node count changed, which used to WIPE all physics
+   displacement — the silent reason the console "did nothing"). */
+const PHYS_OFF = {};
 function physicsWake(){ PHYS.active = true; PHYS.cool = 0; }
 function physicsHomeSnapshot(){
   PHYS.home = {};
   for(const id in layout) PHYS.home[id] = { x: layout[id].x, y: layout[id].y, z: 0 };
+}
+function physicsSaveOffsets(){
+  for(const id in PHYS.home){
+    const p = layout[id], h = PHYS.home[id];
+    if(!p) { delete PHYS_OFF[id]; continue; }
+    PHYS_OFF[id] = { x: p.x - h.x, y: p.y - h.y };
+  }
+}
+function physicsRestoreOffsets(){
+  for(const id in PHYS_OFF){
+    const p = layout[id], o = PHYS_OFF[id];
+    if(!p) { delete PHYS_OFF[id]; continue; }
+    p.x += o.x; p.y += o.y;
+  }
 }
 function physicsStep(){
   if(!PHYS.active || nodes.length<3) return;
@@ -1436,7 +1436,8 @@ function physicsStep(){
   if(list.length < 3){ PHYS.active=false; return; }
   const pos = list.map(n=> layout[n.id]);
   const acc = pos.map(()=>({x:0,y:0,z:0}));
-  const REP_CUT = 46;
+  // v9.3: repulsion reach raised 46 -> 130px to match the new drift bound
+  const REP_CUT = 130;
   // bounded repulsion (sampled pairs, capped)
   const K_REP = 0.05 * PHYS.repel;
   const STRIDE = Math.max(1, Math.ceil(list.length/140));
@@ -1452,17 +1453,28 @@ function physicsStep(){
       acc[j].x-=dx; acc[j].y-=dy;
     }
   }
-  // springs along real edges — rest length from the link slider
+  // v9.3 FIX (was dead code — the loop bailed before doing anything):
+  // springs along real edges — rest length scales with the Link length
+  // slider, so the slider now visibly stretches/compresses the spokes.
   const REST = 46 * PHYS.link;
-  const K_EDGE = { owns:0.004, refs:0.003, mentions:0.0035, maps:0.003 };
+  const K_EDGE = 0.010;
+  const idx = new Map(); list.forEach((n,i)=> idx.set(n.id, i));
   (G.edges||[]).forEach(e=>{
-    const ia = -1, ib = -1;
-    return; // edges pull via home anchors below; springs only refine satellites
+    const ia = idx.get(e.source), ib = idx.get(e.target);
+    if(ia==null || ib==null) return;
+    let dx = pos[ib].x-pos[ia].x, dy = pos[ib].y-pos[ia].y, dz = (pos[ib].z||0)-(pos[ia].z||0);
+    const d = Math.max(1, Math.hypot(dx,dy,dz));
+    const f = K_EDGE * (d - REST) / d;
+    dx*=f; dy*=f;
+    acc[ia].x+=dx; acc[ia].y+=dy;
+    acc[ib].x-=dx; acc[ib].y-=dy;
   });
   // integrate with damping + STRONG home anchor (the anti-collapse guarantee):
   // pull toward home grows with displacement, so max drift is bounded ~40px.
   let KE = 0;
-  const MAX_DRIFT = 42;
+  // v9.3: drift bound raised 42 -> 130px so slider changes are actually
+  // visible at fit-zoom (42px was ~15 screen px — imperceptible).
+  const MAX_DRIFT = 130;
   for(let i=0;i<pos.length;i++){
     const n = list[i], p = pos[i], f = acc[i];
     const home = PHYS.home[n.id] || p;
@@ -1475,6 +1487,7 @@ function physicsStep(){
     if(typeof p.z !== 'number' || !isFinite(p.z)) p.z = 0;
     KE += f.x*f.x + f.y*f.y;
   }
+  physicsSaveOffsets();
   PHYS.cool = KE > 0.25 ? 0 : PHYS.cool + 1;
   if(PHYS.cool > 80) PHYS.active = false;
 }
@@ -1482,6 +1495,7 @@ function physicsApplySettings(){
   // re-run layout from scratch, then re-apply the settled displacement
   // implied by current sliders (deterministic, no drift accumulation)
   physicsHomeSnapshot();
+  physicsRestoreOffsets();
   if(PHYS.repel !== 1.0 || PHYS.link !== 1.0){
     PHYS.active = true; PHYS.cool = 0;
   }
@@ -1662,7 +1676,7 @@ function selectNode(id){
      by the 3rd-4th nested node the scene was at 30-50x (everything off-screen). */
   const Z = isReadableNode(n) ? Math.max(1.1, atlasFitZoom()*1.9) : Math.max(1.5, atlasFitZoom()*2.4);
   cam.tz = Z; cam.ttx = -p.x*Z; cam.tty = -p.y*Z;
-  $('#zoomOut').hidden = false;
+
   setFocusTag('focus: <b>'+ (n?n.name:'') +'</b>', (n && n.type==='agent') ? n.rate : null);
   // v9.1 center of gravity: the pick emits a gravity echo — an expanding ring
   // that pulls the eye to the new origin. Edge-less nodes get TWO rings + a
@@ -1671,8 +1685,7 @@ function selectNode(id){
   const pr0 = project(p.x,p.y,p.z);
   ripples.push({x:pr0.x, y:pr0.y, t:0, max:deg?110:170, rings:deg?1:2});
   if(!deg) flashes.push({x:pr0.x, y:pr0.y-44, text:'no linked nodes', ttl:2.2});
-  if(isReadableNode(n)){ populateBrief(n); $('#briefPanel').classList.add('show'); }
-  else { $('#briefPanel').classList.remove('show'); }
+
   if(n){ n.activity = 1; flashes.push({x:project(p.x,p.y,p.z).x, y:project(p.x,p.y,p.z).y-22, text:n.name, ttl:1.6}); }
 }
 function deselectNode(){
@@ -1681,8 +1694,7 @@ function deselectNode(){
   setGhostAvatar('reception');
   const fit = atlasFitZoom();
   cam.tz = fit; cam.ttx = 0; cam.tty = 0;
-  $('#briefPanel').classList.remove('show');
-  $('#zoomOut').hidden = true;
+
   setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
   lastRightSig=null; renderAgents(); renderLegend(); renderRightStable(null);
 }
@@ -1692,7 +1704,6 @@ function computeFocus(){
   focusSet.add(selected.id);
   G.edges.forEach(e=>{ if(e.source===selected.id) focusSet.add(e.target); if(e.target===selected.id) focusSet.add(e.source); });
 }
-$('#zoomOut').addEventListener('click', deselectNode);
 window.addEventListener('keydown', e=>{ if(e.key==='Escape') deselectNode(); });
 
 // wheel zoom toward cursor
@@ -2443,7 +2454,7 @@ function renderCalendar(){
    ============================================================ */
 const GUIDES = { default: {
   body: `This is your <b>live knowledge graph</b>. The agents sit at the centre; their <b>files and assets</b> radiate out, connected by the real links between them — what references what, and what each agent owns.`,
-  tips: ['<b>Click a node</b> to zoom into its neighbourhood and see its links.', 'The <b>gold pulses</b> are live activity moving between connected nodes.', 'Drag to rotate · click empty space (or <b>Zoom out</b>) to step back.', 'Click <b>Open</b> to launch a real file on this machine.',] } };
+  tips: ['<b>Click a node</b> to zoom into its neighbourhood and see its links.', 'The <b>gold pulses</b> are live activity moving between connected nodes.', 'Drag to rotate · click empty space or press <b>Esc</b> to step back.', 'Click <b>Open</b> to launch a real file on this machine.',] } };
 function openGuide(){ const g=GUIDES.default; $('#guideBody').innerHTML = g.body + '<ul>' + g.tips.map(t=>'<li>'+t+'</li>').join('') + '</ul>'; $('#ghostModal').classList.add('show'); }
 function closeGuide(){ $('#ghostModal').classList.remove('show'); }
 $('#ghostBtn').onclick = openGuide;
@@ -2735,27 +2746,6 @@ function renderLegend(){
     row.onclick = ()=>{ const n = nodeMap['agent:'+row.dataset.id]; if(n) selectNode(n.id); };
   });
 }
-function renderMemoryBrief(){
-  const el = $('#briefBody'); if(!el) return;
-  // v6.6.1 fix: fetchState polls every 8s -> refreshState -> applyMemoryState,
-  // which used to rewrite #briefBody back to the wiki/run digest and clobber
-  // whatever node brief was open. Skip the auto digest while a readable node
-  // is selected — its brief owns the panel until deselected/closed.
-  const sel = (typeof selected !== 'undefined' && selected.id) ? nodeMap[selected.id] : null;
-  if(sel && isReadableNode(sel)) return;
-  const mem = STATE.memory || {}; const b = mem.brief || {};
-  let html = '';
-  if(b.wiki){
-    html += '<div class="brief-item"><div class="bh">◆ Latest Wiki</div><div class="bn">'+esc(b.wiki.title)+'</div><div class="bp">'+esc(b.wiki.preview)+'</div><div class="bo"><button data-open="'+esc(b.wiki.path)+'">Open</button><button class="bk-listen" data-text="'+esc((b.wiki.title||'').slice(0,180))+'">🔊 Listen</button></div></div>';
-  }
-  if(b.run){
-    html += '<div class="brief-item"><div class="bh">◈ Latest Run</div><div class="bn">'+esc(b.run.title)+'</div><div class="bp">'+esc(b.run.preview)+'</div><div class="bo"><button data-open="'+esc(b.run.path)+'">Open</button></div></div>';
-  }
-  if(!html) html = '<div class="empty">Vault is empty — seed it first.</div>';
-  el.innerHTML = html;
-  el.querySelectorAll('[data-open]').forEach(btn=>{ btn.onclick = ()=> openFile({path:btn.dataset.open, name:btn.dataset.open.split('/').pop()}); });
-  el.querySelectorAll('.bk-listen').forEach(btn=>{ btn.onclick = ()=> speak('reception', btn.dataset.text); });
-}
 function updateStatusChips(ok){
   const v = STATE.vitals || {};
   const relayOk = !!(STATE.relay && (STATE.relay.vps || STATE.relay.local));
@@ -2787,112 +2777,11 @@ function fmtWhen(ts){
   return Math.floor(s/86400)+'d ago';
 }
 function applyMemoryState(){
-  renderDirectives(); renderDocuments(); renderLegend(); renderMemoryBrief();
+  renderDirectives(); renderDocuments(); renderLegend();
   const mem = STATE.memory || {};
 }
-$('#briefClose').onclick = ()=>{ $('#briefPanel').classList.remove('show'); };
 
-function populateBrief(n){
-  const el = $('#briefBody'); if(!el || !n) return;
-  const col = n.type==='memory' ? zoneColor(n.zone) : '#B08D57';
-  const badge = n.type==='memory' ? zoneLabel(n.zone)+(n.index?' · INDEX MAP':'') : (n.ext||'MD');
-  if(n.type==='conversation'){
-    // conversation brief: title + meta chips + last-12 message preview (/conv)
-    const chips = [
-      n.model ? 'model '+n.model : '',
-      n.message_count ? n.message_count+' messages' : '',
-      n.last_ts ? fmtWhen(n.last_ts) : '',
-      n.source ? n.source : '',
-    ].filter(Boolean);
-    el.innerHTML = `
-      <div class="brief-item">
-        <div class="bh" style="color:#8E9AB2">◆ CONVERSATION</div>
-        <div class="bn">${esc(n.name)}</div>
-        ${chips.length?`<div class="skills" style="margin:4px 0 6px">${chips.map(c=>`<span>${esc(c)}</span>`).join('')}</div>`:''}
-        <div class="bp" id="briefPreview" style="max-height:120px;display:block;-webkit-line-clamp:unset;overflow-y:auto">Loading transcript…</div>
-        <div class="bo"><button id="briefOpen">Open profile</button></div>
-      </div>
-      <div class="brief-item"><div class="bh">🔗 Links</div><div id="briefLinks" class="links"></div></div>`;
-    $('#briefOpen').onclick = ()=>{ const p = nodeMap['profile:'+n.profile]; if(p) selectNode(p.id); };
-    fetch('/conv?profile='+encodeURIComponent(n.profile||'')+'&session='+encodeURIComponent(n.session_id||'')).then(r=>r.json()).then(d=>{
-      const pv = $('#briefPreview'); if(!pv) return;
-      const lines = (d.messages||[]).map(m=>{
-        const who = m.role==='assistant' ? 'assistant' : 'user';
-        return who+': '+(m.content||'').replace(/\n+/g,' ');
-      }).slice(-12).join('\n');
-      pv.textContent = lines || '(empty transcript)';
-    }).catch(()=>{ const pv=$('#briefPreview'); if(pv) pv.textContent = 'Could not load transcript.'; });
-    const links = edgesOf(n.id);
-    $('#briefLinks').innerHTML = links.length ? links.slice(0,8).map(e=>{
-      const other = nodeMap[e.source===n.id?e.target:e.source];
-      return `<div class="lk"><span class="tag ${e.kind}">${e.kind}</span><span>${other?esc(other.name):'…'}</span></div>`;
-    }).join('') : '<div class="empty">No graph links.</div>';
-    return;
-  }
-  if(n.type==='profile'){
-    // profile brief: stats only (no file path to /read)
-    const stats = [
-      n.session_count ? n.session_count+' sessions' : '0 sessions',
-      n.message_count ? n.message_count+' messages' : '0 messages',
-      n.skill_count ? n.skill_count+' skills' : '0 skills',
-      n.memory_count ? n.memory_count+' memories' : '0 memories',
-    ];
-    el.innerHTML = `
-      <div class="brief-item">
-        <div class="bh" style="color:#ADAAB9">◆ HERMES PROFILE</div>
-        <div class="bn">${esc(n.name)}</div>
-        <div class="skills" style="margin:4px 0 6px">${stats.map(s=>`<span>${esc(s)}</span>`).join('')}</div>
-        <div class="bp">${esc(n.profile||'')} · last activity ${fmtWhen(n.last_ts)}</div>
-      </div>
-      <div class="brief-item"><div class="bh">🔗 Links</div><div id="briefLinks" class="links"></div></div>`;
-    const links = edgesOf(n.id);
-    $('#briefLinks').innerHTML = links.length ? links.slice(0,8).map(e=>{
-      const other = nodeMap[e.source===n.id?e.target:e.source];
-      return `<div class="lk"><span class="tag ${e.kind}">${e.kind}</span><span>${other?esc(other.name):'…'}</span></div>`;
-    }).join('') : '<div class="empty">No graph links.</div>';
-    return;
-  }
-  el.innerHTML = `
-    <div class="brief-item">
-      <div class="bh" style="color:${col}">◆ ${esc(badge)}</div>
-      <div class="bn">${esc(n.name)}</div>
-      <div class="bp" id="briefPreview">Loading preview…</div>
-      <div class="bo"><button id="briefOpen">Open</button><button id="briefListen">🔊 Listen</button></div>
-    </div>
-    <div class="brief-item"><div class="bh">🔗 Links</div><div id="briefLinks" class="links"></div></div>`;
-  $('#briefOpen').onclick = ()=> openFile({path:n.path, name:n.name});
-  $('#briefListen').onclick = ()=>{
-    const owner = nodeMap['agent:'+n.owner];
-    speak(owner ? owner.agent : 'reception', String(n.name||'').slice(0,200));
-  };
-  const links = edgesOf(n.id);
-  const bl = $('#briefLinks');
-  bl.innerHTML = links.length ? links.slice(0,8).map(e=>{
-    const other = nodeMap[e.source===n.id?e.target:e.source];
-    return `<div class="lk"><span class="tag ${e.kind}">${e.kind}</span><span>${other?esc(other.name):'…'}</span></div>`;
-  }).join('') : '<div class="empty">No graph links.</div>';
-  const ext = String(n.ext||'').toLowerCase();
-  const isImage = ['png','jpg','jpeg','svg','webp','gif','ico'].includes(ext);
-  const isHtml = ext==='html' || ext==='htm';
-  const pv = $('#briefPreview');
-  if(isImage){
-    pv.innerHTML = `<img src="/asset?path=${encodeURIComponent(n.path)}" style="max-width:100%;border-radius:8px;border:1px solid rgba(176,141,87,.35);background:#FFFFFF" alt="${esc(n.name)}">`;
-  } else if(isHtml){
-    pv.innerHTML = `<iframe src="/asset?path=${encodeURIComponent(n.path)}" style="width:100%;height:220px;border:1px solid rgba(176,141,87,.35);border-radius:8px;background:#FFFFFF"></iframe>`;
-  } else {
-    const asMd = mdExt(n);
-    if(asMd) pv.innerHTML = '<div class="mdview" id="mdBody">Loading…</div>';
-    fetch('/read?path=' + encodeURIComponent(n.path)).then(r=>r.json()).then(d=>{
-      const pv2 = asMd ? $('#mdBody') : $('#briefPreview'); if(!pv2) return;
-      if(d.binary){ pv2.textContent = '(binary file — click Open to view)'; return; }
-      if(asMd){ pv2.innerHTML = renderMarkdown(d.text||''); }
-      else {
-        const txt = (d.text||'').split('\n').slice(0,80).join('\n');
-        pv2.textContent = txt || '(empty)';
-      }
-    }).catch(()=>{ const pv2 = asMd ? $('#mdBody') : $('#briefPreview'); if(pv2) pv2.textContent = 'Could not load preview.'; });
-  }
-}
+/* v9.3: populateBrief() removed with the floating Memory Brief panel (per Vincent, 2026-08-25). Node preview/links now live only in the right panel (renderRightStable). */
 
 /* ---- Memory tab (zone filters + list) ---- */
 let memFilter = 'all';
@@ -3106,17 +2995,17 @@ const GC = { hubLabels:true, pulse:true, stars:true, countsDone:false };
   repel.addEventListener('input', ()=>{
     PHYS.repel = repel.value/100;
     rVal.textContent = PHYS.repel.toFixed(1)+'×';
+    computeLayout(); physicsHomeSnapshot();   // v9.3: structural reshape, instant
     physicsWake();
     gcSave();
   });
   link.addEventListener('input', ()=>{
     PHYS.link = link.value/100;
     lVal.textContent = PHYS.link.toFixed(1)+'×';
+    computeLayout(); physicsHomeSnapshot();   // v9.3: structural reshape, instant
     physicsWake();
     gcSave();
   });
-  link.addEventListener('change', ()=>{ physicsHomeSnapshot(); });
-  repel.addEventListener('change', ()=>{ physicsHomeSnapshot(); });
   function gcSave(){
     try{ localStorage.setItem('ccGraphConsole', JSON.stringify({repel:PHYS.repel, link:PHYS.link, hubLabels:GC.hubLabels, pulse:GC.pulse, stars:GC.stars})); }catch(e){}
   }
