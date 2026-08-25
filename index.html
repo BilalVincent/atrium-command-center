@@ -1657,7 +1657,10 @@ function selectNode(id){
   computeFocus();
   const p = worldPos(id);
   const s0 = 1;   // flat: no perspective divide on world coords
-  const Z = isReadableNode(n) ? Math.max(1.1, cam.zoom*1.9) : Math.max(1.5, cam.zoom*2.4);
+  /* v9.2.1 zoom-compound fix: anchor the focus zoom to the ATLAS fit zoom, not
+     the current cam.zoom — the old cam.zoom*2.4 compounded ×2.4 per click and
+     by the 3rd-4th nested node the scene was at 30-50x (everything off-screen). */
+  const Z = isReadableNode(n) ? Math.max(1.1, atlasFitZoom()*1.9) : Math.max(1.5, atlasFitZoom()*2.4);
   cam.tz = Z; cam.ttx = -p.x*Z; cam.tty = -p.y*Z;
   $('#zoomOut').hidden = false;
   setFocusTag('focus: <b>'+ (n?n.name:'') +'</b>', (n && n.type==='agent') ? n.rate : null);
@@ -1887,8 +1890,7 @@ function frame(now){
   hub.addColorStop(0,'rgba(217,185,120,.16)'); hub.addColorStop(1,'rgba(217,185,120,0)');
   ctx.fillStyle=hub; ctx.beginPath(); ctx.arc(cx,cy,46,0,Math.PI*2); ctx.fill();
   if(GC.hubLabels){
-    ctx.fillStyle='rgba(232,207,160,.6)'; ctx.font='800 9px Montserrat, Inter, sans-serif'; ctx.textAlign='center';
-    ctx.fillText('A.T.', cx, cy + 58);
+    /* A.T. hub label removed (Vincent, Aug 25 2026) */
   }
 
   // team ring (agents form the center)
@@ -1917,9 +1919,10 @@ function frame(now){
     const hot = hotFiles.has(e.source) || hotFiles.has(e.target);
     if(hot){ alpha += 0.3; color='176,141,87'; }
     let inFocus = false;
+    let towardSel = null;   /* hoisted: the comet-trail block below reads this outside the if(focused) scope (v9.2.1 click-freeze fix) */
     if(focused){
       inFocus = focusSet.has(e.source) && focusSet.has(e.target);
-      const towardSel = e.source===selected.id ? pb : (e.target===selected.id ? pa : null);
+      towardSel = e.source===selected.id ? pb : (e.target===selected.id ? pa : null);
       if(inFocus && towardSel){
         // animated flow: base line stays calm, marching dashes run INTO the selection
         const other = (towardSel===pa) ? pb : pa;
@@ -1940,7 +1943,7 @@ function frame(now){
     if(!(inFocus && focused) && (cross || e.kind==='mentions' || e.kind==='refs')) ctx.setLineDash([4,4]); else ctx.setLineDash([]);
     ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
     // comet trail on animated edges: bright head glides into the selected node
-    if(inFocus && focused){
+    if(inFocus && focused && towardSel){   /* towardSel null when the edge links two neighbours — skip, don't crash (v9.2.1) */
       const from = (e.source===selected.id) ? b : a;
       const head = projMap[from.id];
       if(head){
