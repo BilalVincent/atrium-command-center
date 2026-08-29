@@ -826,6 +826,33 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
 #cmdkChip:focus-visible{box-shadow:0 0 0 3px rgba(176,141,87,.35);outline:none}
 @media (max-width:600px){ #cmdkPanel{margin-top:8vh} #cmdkInput{font-size:16px} #cmdkChip{height:32px} }
 /* v9.1 edge-flow: comet trail along selected edges */
+
+/* ============================================================
+   v10.0 GLASS BALL — globe legend roundel + collapsible left rail
+   ============================================================ */
+/* Legend: collapses to a 34px circular "L" roundel; expands on hover/click */
+.legend{transition:all .22s ease;max-width:236px}
+.legend.lg-collapsed{padding:0!important;width:34px;height:34px;border-radius:50%;overflow:hidden;cursor:pointer;display:flex;align-items:center;justify-content:center;background:rgba(14,12,9,.78)}
+.legend.lg-collapsed .lg, .legend.lg-collapsed .rail-sec, .legend.lg-collapsed .lg-divider{display:none!important}
+.legend.lg-collapsed::after{content:'L';font-size:14px;font-weight:800;color:#E8CFA0;font-family:Montserrat,Inter,sans-serif;letter-spacing:.05em}
+.legend.lg-collapsed:hover{border-color:rgba(232,207,160,.55)}
+.legend .lg-divider{height:1px;background:rgba(232,207,160,.18);margin:6px 0}
+/* Left rail: fully collapsible — brand mark doubles as the toggle */
+.app.v10-rail-hidden{grid-template-columns:0px 1fr 322px}
+.app.v10-rail-hidden .left{opacity:0;pointer-events:none;transform:translateX(-18px)}
+.left{transition:opacity .24s ease, transform .24s ease}
+.brand .mark{cursor:pointer;transition:all .16s ease;user-select:none}
+.brand .mark:hover{background:var(--gold);color:#14110D}
+.app.v10-rail-hidden .brand .mark{background:var(--gold);color:#14110D}
+.scene-wrap{cursor:grab}
+.scene-wrap:active{cursor:grabbing}
+.scene-wrap.v10-hold{cursor:crosshair}
+.brand button.mark{font-family:inherit}   /* v10.0.1: the rail toggle is a <button> — strip UA default font */
+/* deep-dive hint flash */
+.v10-hold-flash{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:22;font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#E8CFA0;background:rgba(14,12,9,.72);border:1px solid rgba(176,141,87,.4);border-radius:999px;padding:5px 13px;pointer-events:none;opacity:0;transition:opacity .25s ease}
+.v10-hold-flash.show{opacity:1}
+/* v10.0.1: rail collapse must NOT force the 3-column desktop grid onto tablets/phones */
+@media (max-width:1000px){ .app.v10-rail-hidden{grid-template-columns:1fr} .app.v10-rail-hidden .right{display:none} }
 </style>
 </head>
 <body>
@@ -872,7 +899,7 @@ html.chat-docked body .chat-head{padding-top:6px;padding-bottom:4px;font-size:11
   <header class="topbar">
     <div class="brand">
       <button class="menu-btn" id="menuBtn" aria-label="Open menu">☰</button>
-      <span class="mark">Q</span>
+      <button class="mark" id="railToggle" aria-label="Toggle menu" title="Toggle menu">Q</button>
       <div class="brand-text"><span class="name">A.T.R.I.U.M.</span><span class="tag">AI Operating System</span></div>
     </div>
     <div class="orbit-search" id="orbitSearch">
@@ -1290,14 +1317,13 @@ function markHot(){
 function computeLayout(){
   layout = {};
   /* ============================================================
-     v8.0 FLAT ATLAS — 2D hub-and-spoke (ref: Vincent's network map).
-     - Agents are HUBS placed on a wide deterministic ring.
-     - Every satellite (files / memory / skills / conversations / cron)
-       sits on its own ring around its hub, angle-seeded per node id.
-     - Unowned nodes get a neutral outer belt.
-     - Deterministic: same data -> same map (seeded PRNG per node id).
-     - Grows outward: hub ring radius scales with hub count, satellite
-       rings with member count — new nodes never overlap old ones.
+     v10.0 GLASS BALL — 3D Fibonacci sphere (replaces v8 flat atlas).
+     - Agents + end-user files + memories sit ON the sphere surface.
+     - Deterministic: seeded PRNG per node id -> same data, same ball.
+     - Sphere radius grows with node count (sqrt) so it never crowds;
+       Vincent's rule: preserve space for scaling as inputs grow.
+     - Skills / conversations / cron stay OFF the ball default view;
+       filter pills still reveal them (belt ring behind the sphere).
      ============================================================ */
   function hashStr(s){ let h=2166136261>>>0; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
   function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
@@ -1308,89 +1334,55 @@ function computeLayout(){
     for(let k=nodes.length-1;k>=0;k--){ if(!seenIds.has(nodes[k].id)){ seenIds.add(nodes[k].id); uniq.push(nodes[k]); } }
     uniq.reverse(); }
 
-  const agents = uniq.filter(n=>n.type==='agent').sort((a,b)=> a.id<b.id?-1:1);
-  const agentRingR = 150 + 26*Math.sqrt(Math.max(agents.length,1));   // grows with team size
-  /* v9.3: console sliders reshape the atlas STRUCTURALLY. Repel spreads
-     satellite rings + the outer belt apart; Link length scales the spoke
-     (hub→satellite) distance. computeLayout() runs on every /state poll,
-     so slider settings survive re-layouts BY CONSTRUCTION — the old
-     per-node physics offsets were wiped by every poll, which is why the
-     console never seemed to do anything. */
-  const LINK = PHYS.link, SPREAD = 0.55 + 0.45*PHYS.repel;
-  const hubPos = {};
-  agents.forEach((a,i)=>{
-    const ang = (i/agents.length)*Math.PI*2 - Math.PI/2;
-    hubPos[a.id] = { x: Math.cos(ang)*agentRingR, y: Math.sin(ang)*agentRingR*0.82, z: 0 };
+  /* ---- globe population: agents, files, memories, profiles ---- */
+  const globe = uniq.filter(n=> n.type==='agent' || n.type==='file' || n.type==='memory' || n.type==='profile');
+  const far   = uniq.filter(n=> n.type==='skill'  || n.type==='conversation' || n.type==='cron');
+
+  // sphere radius grows with population but stays stable when nodes archive
+  const N = Math.max(globe.length, 24);
+  const R = 170 * Math.pow(N/120, 0.30);          // 120 nodes -> 170px; grows gently
+
+  // Fibonacci sphere: even spread, golden-angle per index + id-hash seed
+  const GA = Math.PI * (3 - Math.sqrt(5));
+  globe.forEach((n,i)=>{
+    const y = 1 - (i + 0.5) / N * 2;              // -1..1
+    const rad = Math.sqrt(Math.max(0, 1 - y*y));
+    /* v10.0.1: agents get their own DETERMINISTIC spread across the sphere —
+       sequential Fibonacci indices 0..6 stack all 7 at the north pole,
+       garbling every label into one unreadable clump (QA screenshot proof). */
+    const seq = n.type==='agent' ? (hashStr('agent-slot|'+n.id) % N) : i;
+    const theta = GA*seq + (hashStr(n.id) % 97) * 0.021;   // deterministic jitter, no clumps
+    layout[n.id] = { x: Math.cos(theta)*rad*R, y: y*R*0.94, z: Math.sin(theta)*rad*R };
   });
 
-  // satellites grouped per hub
-  const sat = {}; agents.forEach(a=> sat[a.id]=[]);
-  const loose = [];
-  uniq.forEach(n=>{
-    if(n.type==='agent') return;
-    let hub = null;
-    if(n.type==='file' || n.type==='memory'){
-      // memory: zone -> nearest semantic owner is not defined; use zone hubs later.
-      hub = n.owner || null;
-    }
-    if(n.type==='skill'){ hub = n.profile || null; }
-    if(n.type==='conversation'){ hub = n.profile || null; }
-    if(n.type==='cron'){ hub = null; }
-    if(hub && hubPos['agent:'+hub]) sat['agent:'+hub].push(n);
-    else loose.push(n);
-  });
-  // memory nodes: distribute by zone across agents deterministically so the
-  // vault reads as part of the team atlas (wiki->reception, outputs spread, ...)
-  const ZONE_HUB = { wiki:'reception', index:'reception', ops:'amara', raw:'thabo', outputs:'liam', runs:'marcus' };
-  const memPlaced = new Set();   // guard: a memory with an owner must not join a SECOND hub
-  uniq.forEach(n=>{
-    if(n.type!=='memory') return;
-    const hid = 'agent:' + (ZONE_HUB[n.zone] || 'reception');
-    if(sat[hid] && !memPlaced.has(n.id)){ sat[hid].push(n); memPlaced.add(n.id); }
+  // agents get a slight surface lift so the core team reads first
+  uniq.filter(n=>n.type==='agent').forEach((a)=>{
+    const p = layout[a.id]; if(!p) return;
+    const lr = Math.hypot(p.x,p.y,p.z) || 1;
+    p.x *= R*1.02/lr; p.y *= R*0.94*1.02/lr; p.z *= R*1.02/lr;
   });
 
-  const R0 = 64, DR = 26;   // first satellite ring radius, ring spacing
-  agents.forEach(a=>{
-    const members = sat[a.id];
-    const c = hubPos[a.id];
-    if(!members.length) return;
-    const rings = Math.max(1, Math.ceil(members.length / 14));
-    const perRing = Math.ceil(members.length / rings);
-    members.forEach((n,i)=>{
-      const ring = Math.floor(i / perRing);
-      const onRing = i % perRing;
-      const count = Math.min(perRing, members.length - ring*perRing);
-      const rr = R0*LINK + ring*DR*SPREAD + 3.2*Math.sqrt(Math.max(1,count))*SPREAD;
-      const base = (hashStr(n.id) % 1000) / 1000 * Math.PI*2;      // seeded offset
-      const ang = base + (onRing/count)*Math.PI*2;
-      const jr = 3 + (hashStr(n.id+'|j') % 7);                     // tiny jitter
-      layout[n.id] = { x: c.x + Math.cos(ang)*(rr+jr), y: c.y + Math.sin(ang)*(rr+jr)*0.92, z: 0 };
-    });
-  });
-  agents.forEach(a=>{ layout[a.id] = hubPos[a.id]; });   // hubPos carries z:0
-
-  // neutral outer BELT (annulus, not a circle) for unowned nodes — skills,
-  // conversations, profiles, cron. Spread over a band so 1000+ nodes read as
-  // a star field rather than a solid ring.
-  if(loose.length){
-    const beltR0 = agentRingR + 130*Math.max(LINK, SPREAD);
-    const bandW = (60 + 14*Math.sqrt(loose.length)) * SPREAD;  // band grows with population
-    loose.forEach((n,i)=>{
-      const base = (hashStr(n.id) % 1000) / 1000;
-      const ang = base*Math.PI*2 + (i/loose.length)*Math.PI*2;
+  // far layers: outer belt BEHIND the ball (skills/convs/cron — filter pills reveal)
+  if(far.length){
+    const beltR0 = R + 90;
+    const bandW = 60 + 16*Math.sqrt(far.length);
+    far.forEach((n,i)=>{
+      const y = 1 - ((hashStr(n.id)%997)/997)*2;
+      const rad = Math.sqrt(Math.max(0,1-y*y));
+      const theta = (hashStr(n.id+'|t')%1000)/1000*Math.PI*2;
       const rr = beltR0 + (hashStr(n.id+'|r') % 1000)/1000 * bandW;
-      layout[n.id] = { x: Math.cos(ang)*rr, y: Math.sin(ang)*rr*0.85, z: 0 };
+      layout[n.id] = { x: Math.cos(theta)*rad*rr, y: y*rr*0.9, z: Math.sin(theta)*rad*rr };
     });
   }
 
-  // centroid lock: keep the atlas centered as it grows
-  let mx=0,my=0,cnt=0;
-  uniq.forEach(n=>{ const p=layout[n.id]; if(p){ mx+=p.x; my+=p.y; cnt++; } });
-  if(cnt){ mx/=cnt; my/=cnt; uniq.forEach(n=>{ const p=layout[n.id]; if(p){ p.x-=mx; p.y-=my; } }); }
+  // centroid lock: keep the ball centered as it grows
+  let mx=0,my=0,mz=0,cnt=0;
+  uniq.forEach(n=>{ const p=layout[n.id]; if(p){ mx+=p.x; my+=p.y; mz+=(p.z||0); cnt++; } });
+  if(cnt){ mx/=cnt; my/=cnt; mz/=cnt; uniq.forEach(n=>{ const p=layout[n.id]; if(p){ p.x-=mx; p.y-=my; p.z=(p.z||0)-mz; } }); }
 
-  // fit camera: default zoom shows the whole atlas
+  // fit camera: default zoom shows the whole ball
   let ext = 200;
-  uniq.forEach(n=>{ const p=layout[n.id]; if(p){ ext = Math.max(ext, Math.hypot(p.x,p.y)); } });
+  uniq.forEach(n=>{ const p=layout[n.id]; if(p){ ext = Math.max(ext, Math.hypot(p.x,p.y,(p.z||0))); } });
   window.__atlasExtent = ext;
 }
 
@@ -1527,8 +1519,19 @@ function resize(){
 }
 window.addEventListener('resize', ()=>{ resize(); if(!selected.id){ const f = atlasFitZoom(); cam.tz = f; } }); resize();
 
-/* v8.0: flat atlas — no 3D rotation; rotX/rotY kept at 0 so worldPos() is identity */
+/* v10.0: brand mark toggles the left rail (expand/collapse everything) */
+(function(){
+  const btn = document.getElementById('railToggle'); const app = document.querySelector('.app');
+  if(!btn || !app) return;
+  btn.addEventListener('click', ()=> app.classList.toggle('v10-rail-hidden'));
+})();
+
+/* v10.0 GLASS BALL: 3D rotation is back. Auto-spin clockwise at the
+   classic drift rate; drag on empty space = spin the ball; drag starting
+   ON a node = move that node on the ball surface (not select). */
 let rotY = 0, rotX = 0;
+const AUTO_ROT = 0.00045;          // clockwise drift (matches old orbit rate)
+let v10SpinVel = 0;                 // momentum from drag spins
 const MIN_ZOOM = 0.30, MAX_ZOOM = 3.0;
 let cam = { zoom:0.45, tx:0, ty:0, tz:0.45, ttx:0, tty:0 };   // tz re-fitted once layout computes
 const selected = { id: null };
@@ -1543,11 +1546,31 @@ let particles = [];
 let audioCtx = null;
 (function seed(){ for(let i=0;i<220;i++) particles.push({x:(Math.random()*2-1), y:(Math.random()*2-1), z:Math.random()*0.9+0.1, tw:Math.random()*6.28, sp:0.2+Math.random()*0.6, size:0.5+Math.random()*1.5}); })();
 
+/* v10.0.1 PERF: rotation trig memoized per frame-set. rotate3 used to run
+   4 Math.cos/sin calls on EVERY invocation — with callers in the projMap
+   loop (~1350/frame), hitNode (full sweep on every pointermove), pulses
+   and labels, that was ~8k trig calls + 2×1350 object allocations per
+   frame on a 4-core box. Now: trig computed ONCE per rotX/rotY change in
+   worldPos/hitNode (the hot paths fall through to rotate3Cached). */
+let _rx = 1e9, _ry = 1e9, _cosY = 1, _sinY = 0, _cosX = 1, _sinX = 0;
+function refreshRotTrig(){
+  if(rotX !== _rx || rotY !== _ry){
+    _rx = rotX; _ry = rotY;
+    _cosY = Math.cos(_ry); _sinY = Math.sin(_ry);
+    _cosX = Math.cos(_rx); _sinX = Math.sin(_rx);
+  }
+}
 function rotate3(x,y,z,rx,ry){
   let c=Math.cos(ry), s=Math.sin(ry);
   const x1=x*c + z*s, z1=-x*s + z*c;
   c=Math.cos(rx); s=Math.sin(rx);
   const y1=y*c - z1*s, z2=y*s + z1*c;
+  return {x:x1, y:y1, z:z2};
+}
+function rotate3Cached(x,y,z){
+  refreshRotTrig();
+  const x1 = x*_cosY + z*_sinY, z1 = -x*_sinY + z*_cosY;
+  const y1 = y*_cosX - z1*_sinX, z2 = y*_sinX + z1*_cosX;
   return {x:x1, y:y1, z:z2};
 }
 const FOCAL = 560;
@@ -1557,9 +1580,13 @@ function worldPos(id){
      while the cx/cy-drawn glow + label still rendered). Default z to 0. */
   const p = layout[id] || {x:0,y:0,z:0};
   const z = (typeof p.z === 'number' && isFinite(p.z)) ? p.z : 0;
-  return rotate3(p.x, p.y, z, rotX, rotY);
+  return rotate3Cached(p.x, p.y, z);
 }
-function project(x,y,z){ const s = FOCAL/(FOCAL+z) * cam.zoom; return {x: cx + x*s + cam.tx, y: cy + y*s + cam.ty, s}; }
+/* v10.0: clamp behind-camera points (z can cross -FOCAL when the outer belt,
+   radius ~R+90+, swings around during spin) — naive FOCAL/(FOCAL+z) goes
+   negative there and arc() throws IndexSizeError. Near-plane nodes shrink to
+   a speck instead of exploding; far side is untouched. */
+function project(x,y,z){ const d = FOCAL+z; const s = (d <= 1 ? 0.012 : Math.min(FOCAL/d, 2.8)) * cam.zoom; return {x: cx + x*s + cam.tx, y: cy + y*s + cam.ty, s}; }
 
 function isReadableNode(n){
   if(!n) return false;
@@ -1617,7 +1644,40 @@ const glowSprite = (()=>{
    ============================================================ */
 const wrap = $('#sceneWrap');
 let drag=null, pinch=null;
-wrap.addEventListener('pointerdown', e=>{ drag={x:e.clientX,y:e.clientY,moved:false,id:e.pointerId}; canvas.setPointerCapture(e.pointerId); showTip(false); });
+// v10.0 helpers: node-drag + hold-deepdive state
+let v10NodeDrag = null;              // {id, } while dragging a node
+let v10HoldTimer = null, v10HoldFired = false;
+function v10ShowHold(on){
+  const f = document.querySelector('.v10-hold-flash');
+  if(!f){
+    const d = document.createElement('div');
+    d.className = 'v10-hold-flash';
+    d.textContent = 'release relations · drag nodes to move · drag space to spin';
+    const sw = document.getElementById('sceneWrap'); if(sw) sw.appendChild(d);
+  }
+  const el = document.querySelector('.v10-hold-flash');
+  if(el) el.classList.toggle('show', !!on);
+}
+wrap.addEventListener('pointerdown', e=>{
+  drag={x:e.clientX,y:e.clientY,moved:false,id:e.pointerId};
+  canvas.setPointerCapture(e.pointerId); showTip(false);
+  /* v10.0.1: ALWAYS reset the hold flag on a fresh press — if a previous
+     hold fired deep-dive, this flag must clear or empty-space taps forever
+     fail to deselect (review risk #1). */
+  v10HoldFired = false;
+  // v10.0: did the press land ON a node?
+  const r = canvas.getBoundingClientRect();
+  const hit = hitNode(e.clientX-r.left, e.clientY-r.top);
+  drag.hit = hit;
+  if(hit && !pinch){
+    v10HoldTimer = setTimeout(()=>{
+      v10HoldFired = true;
+      v10ShowHold(true);
+      const n = nodeMap[hit];
+      if(n && isClickableNode(n)) selectNodeDeep(hit);   // hold = deep-dive relations
+    }, 550);
+  }
+});
 wrap.addEventListener('pointermove', e=>{
   const r = canvas.getBoundingClientRect();
   const px = e.clientX-r.left, py = e.clientY-r.top;
@@ -1630,18 +1690,60 @@ wrap.addEventListener('pointermove', e=>{
   }
   if(drag && e.pointerId===drag.id){
     const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
-    if(Math.abs(dx)+Math.abs(dy) > 4) drag.moved = true;
-    /* v8.0 flat atlas: drag pans the map (no rotation) */
-    cam.ttx += dx; cam.tx += dx;
-    cam.tty += dy; cam.ty += dy;
+    if(Math.abs(dx)+Math.abs(dy) > 4){
+      drag.moved = true;
+      // moving on a node press: cancel hold → convert to NODE DRAG
+      if(v10HoldTimer){ clearTimeout(v10HoldTimer); v10HoldTimer=null; }
+      if(drag.hit && !v10NodeDrag && !v10HoldFired){
+        const n = nodeMap[drag.hit];
+        const lp = layout[drag.hit];
+        if(n && lp) v10NodeDrag = { id: drag.hit, r: Math.hypot(lp.x, lp.y, lp.z||0) };
+      }
+    }
+    if(v10NodeDrag){
+      // move THIS node along the ball surface (screen delta -> world delta at its depth)
+      const p = layout[v10NodeDrag.id] || {x:0,y:0,z:0};
+      const w = worldPos(v10NodeDrag.id);
+      const s = FOCAL/(FOCAL+w.z) * cam.zoom;
+      if(s > 0.05){
+        const wx = dx/s, wy = dy/s;
+        p.x += wx; p.y += wy;
+        // re-project onto the sphere surface (keep on the glass)
+        const lr = Math.hypot(p.x,p.y,p.z||0);
+        const targetR = v10NodeDrag.r || lr;
+        if(lr>0.001){ const k = targetR/lr; p.x*=k; p.y*=k; if(typeof p.z==='number') p.z*=k; }
+        v10NodeDrag.x = e.clientX; v10NodeDrag.y = e.clientY;
+      }
+    } else if(!drag.hit){
+      // spin the ball: horizontal drag -> rotY, vertical drag -> rotX tilt
+      rotY += dx * 0.0042;
+      rotX = Math.max(-1.1, Math.min(1.1, rotX + dy * 0.0022));
+      v10SpinVel = dx * 0.0042;
+    } else {
+      // legacy pan fallback (shouldn't trigger; node hit but hold not fired)
+    }
+    if(!v10NodeDrag && drag.hit && drag.moved && !v10HoldFired && v10HoldTimer===null && drag.holdCancelled){
+      // drag after cancelled hold: treat as node drag
+    }
     drag.x=e.clientX; drag.y=e.clientY;
   }
-  hoverId = hitNode(px,py);
+  /* v10.0.1 PERF: skip the full 1350-node hover sweep while a drag or pinch
+     is in flight — hover is meaningless mid-gesture and the sweep costs a
+     full rotate3Cached pass per mousemove (review risk #3). */
+  if(!drag && !pinch) hoverId = hitNode(px,py);
 });
 wrap.addEventListener('pointerup', e=>{
   if(pinch && (e.pointerId===pinch.id1 || e.pointerId===pinch.id2)){ endPinch(); return; }
-  const wasClick = drag && !drag.moved && e.pointerId===drag.id && activePointers.size<=1 && !pinch;
-  if(wasClick){ const r = canvas.getBoundingClientRect(); const id = hitNode(e.clientX-r.left, e.clientY-r.top); if(id) selectNode(id); else deselectNode(); }
+  if(v10HoldTimer){ clearTimeout(v10HoldTimer); v10HoldTimer=null; }
+  const wasNodeDrag = !!v10NodeDrag;
+  v10NodeDrag = null;
+  v10ShowHold(false);
+  const wasClick = drag && !drag.moved && e.pointerId===drag.id && activePointers.size<=1 && !pinch && !v10HoldFired;
+  if(wasClick){
+    const r = canvas.getBoundingClientRect();
+    const id = hitNode(e.clientX-r.left, e.clientY-r.top);
+    if(id) selectNode(id); else deselectNode();
+  }
   drag=null;
 });
 wrap.addEventListener('pointerleave', ()=>{ hoverId=null; });
@@ -1651,7 +1753,7 @@ function hitNode(px,py){
     if(!isClickableNode(n)) continue;
     if(!growthVisible(n)) continue;
     const p = worldPos(n.id); const pr = project(p.x,p.y,p.z);
-    const base = n.type==='agent'?13:9;
+    const base = n.type==='agent'?18:13;   /* v10.0.1: match the bumped drawNode sizes — old 13/9 made the visible ball bigger than the hit region */
     const rad = Math.max(6, base*pr.s);
     const d = Math.hypot(px-pr.x, py-pr.y);
     if(d < rad+6 && d < bd){ bd=d; best=n.id; }
@@ -1698,6 +1800,16 @@ function deselectNode(){
   setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
   lastRightSig=null; renderAgents(); renderLegend(); renderRightStable(null);
 }
+/* v10.0 hold-to-deepdive: selection + expand focusSet to the full 2-hop
+   relation neighbourhood so hold reveals MORE of the graph web. */
+function selectNodeDeep(id){
+  selectNode(id);
+  if(selected.id !== id) return;
+  const oneHop = new Set();
+  G.edges.forEach(e=>{ if(e.source===id) oneHop.add(e.target); if(e.target===id) oneHop.add(e.source); });
+  oneHop.add(id);
+  G.edges.forEach(e=>{ if(oneHop.has(e.source) && oneHop.has(e.target)){ focusSet.add(e.source); focusSet.add(e.target); } });
+}
 function computeFocus(){
   focusSet = new Set();
   if(!selected.id) return;
@@ -1735,6 +1847,9 @@ wrap.addEventListener('pointerdown', e=>{
   if(activePointers.size===2){
     const pts = Array.from(activePointers.values());
     pinch = {lastD: Math.hypot(pts[1].x-pts[0].x, pts[1].y-pts[0].y)};
+    /* v10.0.1: two fingers down = pinch, NEVER a hold deep-dive (review risk #2) */
+    if(v10HoldTimer){ clearTimeout(v10HoldTimer); v10HoldTimer=null; }
+    v10NodeDrag = null; v10ShowHold(false);
   }
 });
 wrap.addEventListener('pointermove', e=>{
@@ -1754,6 +1869,7 @@ wrap.addEventListener('pointerup', e=>{
 });
 wrap.addEventListener('pointercancel', e=>{
   activePointers.delete(e.pointerId);
+  if(v10HoldTimer){ clearTimeout(v10HoldTimer); v10HoldTimer=null; }   // v10.0.1: palm/pen rejection must cancel a pending hold
   if(activePointers.size<2) endPinch();
 });
 
@@ -1865,6 +1981,7 @@ function growthApply(){
    ============================================================ */
 function frame(now){
   const t = now/1000;
+  rotY += AUTO_ROT + v10SpinVel; v10SpinVel *= 0.94;   // v10.0 clockwise auto-spin + drag momentum
   physicsStep();   // v8.0: bounded console-driven sim (rotation removed — flat atlas)
   cam.zoom += (cam.tz - cam.zoom)*0.09;
   cam.tx += (cam.ttx - cam.tx)*0.09;
@@ -1904,70 +2021,43 @@ function frame(now){
     /* A.T. hub label removed (Vincent, Aug 25 2026) */
   }
 
-  // team ring (agents form the center)
-  ctx.strokeStyle='rgba(176,141,87,.20)'; ctx.lineWidth=1; ctx.setLineDash([4,6]);
-  ctx.beginPath();
-  agentNodes.forEach((a,i)=>{ const pr=projMap[a.id]; if(pr){ if(i===0) ctx.moveTo(pr.x,pr.y); else ctx.lineTo(pr.x,pr.y);} });
-  ctx.closePath(); ctx.stroke(); ctx.setLineDash([]);
-
-  // edges — v8.0 flat atlas (reference style): spokes solid + dark,
-  // cross-links dashed + light, hot edges coral, focus isolates 1-hop.
-  // v9.1: light-scene ink; selected edges ANIMATE — dashes flow toward
-  // the picked node with a comet trail (aiherodictionary-style edge life).
+  // edges — v10.0 glass ball: with NOTHING selected the sphere shows no edges
+  // at all (a pure dot cloud). On selection, only edges touching the picked
+  // node draw, as curved gold filaments (quadratic, midpoint bowed ~12% of the
+  // chord, perpendicular in screen space) with animated blood-flow dashes
+  // running INTO the selection + a comet head gliding from the far node in.
   const focused = !!selected.id;
-  for(const e of G.edges){
-    const a = nodeMap[e.source], b = nodeMap[e.target];
-    if(!a || !b) continue;
-    if(!growthVisible(a) || !growthVisible(b)) continue;
-    const pa = projMap[e.source], pb = projMap[e.target];
-    if(!pa || !pb) continue;
-    const cross = a.type==='agent' && b.type==='agent';
-    let alpha, width=1, color='176,141,87';                 // ink spoke on white
-    if(e.kind==='owns'){ alpha=0.38; width=1; }
-    else if(e.kind==='refs'){ alpha=0.34; width=1; color='150,128,94'; }
-    else if(e.kind==='mentions'){ alpha=0.26; width=0.9; color='150,128,94'; }
-    else { alpha=0.26; width=0.9; color='150,128,94'; }
-    const hot = hotFiles.has(e.source) || hotFiles.has(e.target);
-    if(hot){ alpha += 0.3; color='176,141,87'; }
-    let inFocus = false;
-    let towardSel = null;   /* hoisted: the comet-trail block below reads this outside the if(focused) scope (v9.2.1 click-freeze fix) */
-    if(focused){
-      inFocus = focusSet.has(e.source) && focusSet.has(e.target);
-      towardSel = e.source===selected.id ? pb : (e.target===selected.id ? pa : null);
-      if(inFocus && towardSel){
-        // animated flow: base line stays calm, marching dashes run INTO the selection
-        const other = (towardSel===pa) ? pb : pa;
-        ctx.strokeStyle = 'rgba(217,185,120,'+(hot?0.85:0.55).toFixed(2)+')';
-        ctx.lineWidth = hot ? 1.8 : 1.4;
-        ctx.setLineDash([7,5]);
-        ctx.lineDashOffset = -((t*46)%24);
-        ctx.beginPath(); ctx.moveTo(other.x,other.y); ctx.lineTo(towardSel.x,towardSel.y); ctx.stroke();
-        ctx.setLineDash([]); ctx.lineDashOffset = 0;
-        alpha = 0.62; width = 1.6;
-      } else {
-        alpha = inFocus ? Math.max(alpha, 0.55) : 0.05;
-        width = inFocus ? 1.4 : 0.6;
-      }
-    }
-    ctx.strokeStyle = 'rgba('+color+','+alpha.toFixed(3)+')';
-    ctx.lineWidth = width;
-    if(!(inFocus && focused) && (cross || e.kind==='mentions' || e.kind==='refs')) ctx.setLineDash([4,4]); else ctx.setLineDash([]);
-    ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
-    // comet trail on animated edges: bright head glides into the selected node
-    if(inFocus && focused && towardSel){   /* towardSel null when the edge links two neighbours — skip, don't crash (v9.2.1) */
-      const from = (e.source===selected.id) ? b : a;
-      const head = projMap[from.id];
+  if(focused){
+    ctx.setLineDash([7,5]);
+    ctx.lineDashOffset = -((t*46)%24);
+    ctx.strokeStyle = 'rgba(217,185,120,0.70)';
+    ctx.lineWidth = 1.6;
+    for(const e of G.edges){
+      const a = nodeMap[e.source], b = nodeMap[e.target];
+      if(!a || !b) continue;
+      if(!growthVisible(a) || !growthVisible(b)) continue;
+      if(e.source!==selected.id && e.target!==selected.id) continue;   // non-focus edges: invisible
+      const pa = projMap[e.source], pb = projMap[e.target];
+      if(!pa || !pb) continue;
+      const mx=(pa.x+pb.x)/2 + (pb.y-pa.y)*0.12, my=(pa.y+pb.y)/2 - (pb.x-pa.x)*0.12;
+      ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.quadraticCurveTo(mx,my,pb.x,pb.y); ctx.stroke();
+      // comet trail: bright head glides along the quad Bezier into the selected node
+      const towardSel = (e.source===selected.id) ? pb : pa;
+      const head = projMap[(e.source===selected.id) ? e.target : e.source];
       if(head){
-        const prog = ((t*0.55) % 1);
-        const hx = head.x + (towardSel.x-head.x)*prog, hy = head.y + (towardSel.y-head.y)*prog;
+        const u = (t*0.55) % 1, iu = 1-u;
+        const hx = iu*iu*head.x + 2*iu*u*mx + u*u*towardSel.x;
+        const hy = iu*iu*head.y + 2*iu*u*my + u*u*towardSel.y;
+        ctx.setLineDash([]);
         ctx.fillStyle='rgba(176,141,87,.9)';
         ctx.beginPath(); ctx.arc(hx,hy,2.1,0,Math.PI*2); ctx.fill();
         ctx.fillStyle='rgba(176,141,87,.16)';
         ctx.beginPath(); ctx.arc(hx,hy,6.5,0,Math.PI*2); ctx.fill();
+        ctx.setLineDash([7,5]); ctx.lineDashOffset = -((t*46)%24);
       }
     }
+    ctx.setLineDash([]); ctx.lineDashOffset = 0;
   }
-  ctx.setLineDash([]);
 
   // fast node-to-node activity pulses along edges (v7.0: toggleable)
   pulseTimer += 0.016;
@@ -2009,8 +2099,11 @@ function frame(now){
     }
   }
 
-  // nodes — v8.0 flat atlas: no depth sorting/fade; growth scrubs visibility
-  const order = nodes.slice().sort((a,b)=> (a.type==='agent'?-1:1) - (b.type==='agent'?-1:1));
+  // nodes — v10.0 glass ball: depth sort by projected scale (far first)
+  const order = nodes.slice().sort((a,b)=>{
+    const sa = projMap[a.id] ? projMap[a.id].s : 0, sb = projMap[b.id] ? projMap[b.id].s : 0;
+    return sa - sb;
+  });
   for(const n of order){
     if(!growthVisible(n)) continue;
     const pr = projMap[n.id];
@@ -2020,6 +2113,8 @@ function frame(now){
     else if(orbitFilter==='cron') alpha = n.type==='cron' ? 1 : 0.14;
     else if(orbitFilter==='files') alpha = n.type==='file' ? 1 : 0.14;
     else if(orbitFilter==='memory') alpha = n.type==='memory' ? 1 : 0.14;
+    // v10.0: back of the glass ball reads dimmer/blurred (agents keep full alpha)
+    if(n.type!=='agent' && pr) alpha *= Math.max(0.25, Math.min(1, (pr.s - 0.55) / 0.45 + 1));
     if(selected.id===n.id || hoverId===n.id || highlightId===n.id) alpha = 1;
     else if(focused && !focusSet.has(n.id)) alpha = Math.max(alpha, 0.28);   // v9.1: softer dim — context stays visible
     drawNode(n, pr, focused, alpha);
@@ -2072,11 +2167,11 @@ function drawNode(n, pr, focused, alpha){
   const lit = n.activity>0 || hotFiles.has(n.id) || interactive ||
               (orbitFilter==='files' && n.type==='file');
   const bright = readable || n.type==='agent' || n.type==='cron' || n.type==='file' || n.type==='profile' || n.type==='conversation' || n.type==='skill';
-  let rad = (n.type==='agent'?13:(readable||n.type==='file'?9:6))*s;
-  if(n.type==='memory') rad = (n.index?11:9.5)*s;
-  if(n.type==='cron') rad = 9*s;
+  let rad = (n.type==='agent'?18:(readable||n.type==='file'?13:6))*s;   // v10.0: ~1.4x size bump
+  if(n.type==='memory') rad = (n.index?15:13)*s;
+  if(n.type==='cron') rad = 13*s;
   let restGlow = true;
-  if(n.type==='file'){ rad = (readable?7:4.5)*s*fileClsScale(); restGlow = false; }
+  if(n.type==='file'){ rad = (readable?10:6.5)*s*fileClsScale(); restGlow = false; }
   if(!bright) rad *= 0.65;
   const gs = rad*(2.6 + n.activity*1.5);
   if(restGlow || lit){
@@ -2740,11 +2835,22 @@ function renderLegend(){
   const zoneRows = ['index','wiki','raw','outputs','runs','ops'].map(z=>'<span class="lg"><span class="ldot" style="background:'+zoneColor(z)+'"></span>'+zoneLabel(z)+'</span>').join('');
   el.innerHTML = '<div class="rail-sec" style="margin:0 0 5px"><span>Agent <b>Hubs</b></span><span style="font-size:8.5px" id="legendMeta">'+agentNodes.length+'</span></div>'
     + agentRows
-    + '<div style="height:1px;background:rgba(232,207,160,.18);margin:6px 0"></div>'
+    + '<div class="lg-divider"></div>'
     + zoneRows;
   el.querySelectorAll('.agent-lg').forEach(row=>{
     row.onclick = ()=>{ const n = nodeMap['agent:'+row.dataset.id]; if(n) selectNode(n.id); };
   });
+  // v10.0: default collapsed to the "L" roundel — but only on FIRST bind;
+  // re-collapsing on every renderLegend() call snapped the panel shut on
+  // every selection (renderLegend runs from selectNode).
+  const lgEl = el;
+  if(!lgEl.__v10bound){
+    lgEl.__v10bound = true;
+    lgEl.classList.add('lg-collapsed');
+    lgEl.addEventListener('click', ()=> lgEl.classList.toggle('lg-collapsed'));
+    lgEl.addEventListener('mouseenter', ()=> lgEl.classList.remove('lg-collapsed'));
+    lgEl.addEventListener('mouseleave', (ev)=>{ if(!lgEl.contains(ev.relatedTarget)) lgEl.classList.add('lg-collapsed'); });
+  }
 }
 function updateStatusChips(ok){
   const v = STATE.vitals || {};
