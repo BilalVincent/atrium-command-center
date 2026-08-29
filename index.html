@@ -1532,6 +1532,10 @@ window.addEventListener('resize', ()=>{ resize(); if(!selected.id){ const f = at
 let rotY = 0, rotX = 0;
 const AUTO_ROT = 0.00045;          // clockwise drift (matches old orbit rate)
 let v10SpinVel = 0;                 // momentum from drag spins
+/* v10.1: when a node is selected the ball FREEZES on it — auto-spin, drag
+   momentum and pulse traffic all pause so focus stays put until deselect.
+   The globe then eases so the picked node faces front-center. */
+let v10RotTarget = null;            // {x,y} eased rotation while selected
 const MIN_ZOOM = 0.30, MAX_ZOOM = 3.0;
 let cam = { zoom:0.45, tx:0, ty:0, tz:0.45, ttx:0, tty:0 };   // tz re-fitted once layout computes
 const selected = { id: null };
@@ -1714,8 +1718,10 @@ wrap.addEventListener('pointermove', e=>{
         if(lr>0.001){ const k = targetR/lr; p.x*=k; p.y*=k; if(typeof p.z==='number') p.z*=k; }
         v10NodeDrag.x = e.clientX; v10NodeDrag.y = e.clientY;
       }
-    } else if(!drag.hit){
+    } else if(!drag.hit && !v10RotTarget){
       // spin the ball: horizontal drag -> rotY, vertical drag -> rotX tilt
+      // v10.1: while a node is selected the ball is LOCKED on it — empty-space
+      // drags do nothing (focus stays until deselect / another node).
       rotY += dx * 0.0042;
       rotX = Math.max(-1.1, Math.min(1.1, rotX + dy * 0.0022));
       v10SpinVel = dx * 0.0042;
@@ -1760,6 +1766,19 @@ function hitNode(px,py){
   }
   return best;
 }
+/* v10.1: solve the rotation that brings node (x,y,z) to the FRONT-CENTER of
+   the ball in SCREEN space (camera pan is separate — this only fixes spin).
+   rotate3 order is Y-then-X, so: ry = atan2(x, z) cancels the Y turn, and
+   after that the Y-rotated coords (x1, z1) give rx = atan2(y, z1) for the X
+   tilt. Returns null when the node sits at the globe axis (no angle). */
+function v10FaceCamera(x, y, z){
+  if(!isFinite(x) || !isFinite(y) || !isFinite(z)) return null;
+  if(Math.abs(x) < 1e-6 && Math.abs(z) < 1e-6) return null;
+  const ry = -Math.atan2(x, z);
+  const c = Math.cos(ry), s = Math.sin(ry);
+  const z1 = -x*s + z*c;
+  return { ry: ry, rx: -Math.atan2(y, z1) };
+}
 function selectNode(id){
   playClick();
   const prev = selected.id;
@@ -1772,12 +1791,21 @@ function selectNode(id){
   if(n){ if(n.type==='agent') setChat(n); else { const o = nodeMap['agent:'+n.owner]; if(o) setChat(o); } }
   computeFocus();
   const p = worldPos(id);
-  const s0 = 1;   // flat: no perspective divide on world coords
-  /* v9.2.1 zoom-compound fix: anchor the focus zoom to the ATLAS fit zoom, not
-     the current cam.zoom — the old cam.zoom*2.4 compounded ×2.4 per click and
-     by the 3rd-4th nested node the scene was at 30-50x (everything off-screen). */
-  const Z = isReadableNode(n) ? Math.max(1.1, atlasFitZoom()*1.9) : Math.max(1.5, atlasFitZoom()*2.4);
-  cam.tz = Z; cam.ttx = -p.x*Z; cam.tty = -p.y*Z;
+  /* v10.1 center of gravity: instead of panning, ROTATE the ball until the
+     picked node faces front-center (shortest direction, longest axis wins —
+     Y-spin first, X-tilt second). Camera then zooms in; pan targets 0. */
+  const face = v10FaceCamera(p.x, p.y, p.z);
+  if(face){
+    // shortest-path wrap so the globe turns the close way round
+    let dyR = face.ry - rotY; dyR = Math.atan2(Math.sin(dyR), Math.cos(dyR));
+    let dxR = face.rx - rotX; dxR = Math.atan2(Math.sin(dxR), Math.cos(dxR));
+    v10RotTarget = { x: rotX + dxR, y: rotY + dyR };
+  } else {
+    v10RotTarget = null;
+  }
+  v10SpinVel = 0;   // v10.1: kill drag momentum — click locks the ball
+  const Z = (isReadableNode(n) ? 1.3 : 1.6) + atlasFitZoom()*0.45;   // v10.1: settle closer to the reference look (1.5/1.8 clipped the halo at s>2.8)
+  cam.tz = Z; cam.ttx = 0; cam.tty = 0;
 
   setFocusTag('focus: <b>'+ (n?n.name:'') +'</b>', (n && n.type==='agent') ? n.rate : null);
   // v9.1 center of gravity: the pick emits a gravity echo — an expanding ring
@@ -1792,6 +1820,7 @@ function selectNode(id){
 }
 function deselectNode(){
   selected.id = null; focusSet = new Set(); highlightId = null;
+  v10RotTarget = null;   // v10.1: release the freeze — drift resumes
   if(wrap) wrap.classList.remove('focused');   // v6.6: ambient motion resumes
   setGhostAvatar('reception');
   const fit = atlasFitZoom();
@@ -1800,21 +1829,65 @@ function deselectNode(){
   setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
   lastRightSig=null; renderAgents(); renderLegend(); renderRightStable(null);
 }
-/* v10.0 hold-to-deepdive: selection + expand focusSet to the full 2-hop
-   relation neighbourhood so hold reveals MORE of the graph web. */
+/* v10.1 hold-to-deepdive lives in the computeFocus() block below — the
+   deep-dive now lifts the MAX_FOCUS_EDGES cap for the full relation web. */
+/* v10.1: selection edge list — the click reveals AT MOST MAX_FOCUS_EDGES
+   relations (calmer look at agent/owner density; ref 013823). Priority:
+   agent↔node links first, then memories, then the rest in graph order.
+   A fresh computeFocus() per selection; hold-deepdive (selectNodeDeep)
+   calls it too, but with deep=true which LIFTS the cap (full web). */
+const MAX_FOCUS_EDGES = 30;
+let focusEdges = [];
+function computeFocus(){
+  focusSet = new Set();
+  focusEdges = [];
+  focusEdgeNodes = new Set();
+  if(!selected.id) return;
+  focusSet.add(selected.id);
+  const sel = nodeMap[selected.id];
+  const rel = [];
+  for(const e of G.edges){
+    let other = null;
+    if(e.source===selected.id) other = e.target;
+    else if(e.target===selected.id) other = e.source;
+    else continue;
+    const on = nodeMap[other];
+    rel.push({ e: e, other: other, on: on,
+      pri: (sel && sel.type==='agent') ? 0 : (on && on.type==='agent') ? 1 :
+           (on && on.type==='memory') ? 2 : 3 });
+  }
+  rel.sort((a,b)=> a.pri - b.pri);
+  const deep = !!v10DeepMode;
+  const use = deep ? rel : rel.slice(0, MAX_FOCUS_EDGES);
+  const seen = new Set();
+  for(const r of use){ if(seen.has(r.e)) continue; seen.add(r.e); focusEdges.push(r.e); focusSet.add(r.other); focusEdgeNodes.add(r.other); }
+  /* v10.1 hold deep-dive: beyond the picked node's own (capped) relations,
+     reveal the REST — the edges woven through the 1-hop neighbourhood. That
+     adds the 2-hop web (a 1-hop node's other links), which is exactly what
+     the click cap hid; hold lifts it. */
+  if(deep){
+    for(const e of G.edges){
+      if(seen.has(e)) continue;
+      if(focusSet.has(e.source) && focusSet.has(e.target)){
+        seen.add(e); focusEdges.push(e);
+        focusSet.add(e.source); focusSet.add(e.target);
+        focusEdgeNodes.add(e.source); focusEdgeNodes.add(e.target);
+      }
+    }
+  }
+}
+let v10DeepMode = false;   // set true by selectNodeDeep during its computeFocus
+let focusEdgeNodes = new Set();   // v10.1: O(1) "is this node revealed?" in the render loop
 function selectNodeDeep(id){
-  selectNode(id);
+  /* v10.1.4: holding the ALREADY-SELECTED node must deepen, not toggle off —
+     bypass selectNode's click-toggle and just re-focus with the cap lifted. */
+  if(selected.id !== id) selectNode(id);
   if(selected.id !== id) return;
+  v10DeepMode = true; computeFocus(); v10DeepMode = false;   // v10.1: hold = full relation web (cap lifted)
   const oneHop = new Set();
   G.edges.forEach(e=>{ if(e.source===id) oneHop.add(e.target); if(e.target===id) oneHop.add(e.source); });
   oneHop.add(id);
   G.edges.forEach(e=>{ if(oneHop.has(e.source) && oneHop.has(e.target)){ focusSet.add(e.source); focusSet.add(e.target); } });
-}
-function computeFocus(){
-  focusSet = new Set();
-  if(!selected.id) return;
-  focusSet.add(selected.id);
-  G.edges.forEach(e=>{ if(e.source===selected.id) focusSet.add(e.target); if(e.target===selected.id) focusSet.add(e.source); });
 }
 window.addEventListener('keydown', e=>{ if(e.key==='Escape') deselectNode(); });
 
@@ -1981,7 +2054,41 @@ function growthApply(){
    ============================================================ */
 function frame(now){
   const t = now/1000;
-  rotY += AUTO_ROT + v10SpinVel; v10SpinVel *= 0.94;   // v10.0 clockwise auto-spin + drag momentum
+  /* v10.1: click = the ball freezes on the picked node. While selected:
+     no auto-spin, no drag momentum — rotation EASES to v10RotTarget so the
+     selection sits front-center (center of gravity). Unselected = clockwise
+     drift + momentum as before.
+     v10.1.1: the ease is TIME-BASED (tau = 550ms), not per-frame — at low
+     frame rates (VPS headless QA, 4-core boxes) a per-frame 0.06 factor
+     took ~5-8s to converge; exp decay converges in ~1.6s at ANY fps. */
+  if(v10RotTarget){
+    /* v10.1.2: the face target is LIVE — recomputed from the node's CURRENT
+       layout position each frame, so console-physics drift can never drag
+       the selection off front-center. Ease is exp decay with tau=650ms
+       (frame-rate independent) + a final snap under 2 mrad. */
+    const p = worldPos(selected.id);
+    const face = v10FaceCamera(p.x, p.y, p.z);
+    if(face){
+      /* v10.1.3: keep the target CONTINUOUS with the current rotY — raw
+         atan2 values live in (-π,π] and flip sign at the seam, which made
+         the ease oscillate forever around ±π. Re-express the face angle as
+         the equivalent angle NEAREST the current rotY (add k·2π). */
+      const TAU = Math.PI*2;
+      const ty = face.ry + TAU*Math.round((rotY - face.ry)/TAU);
+      const tx = face.rx + TAU*Math.round((rotX - face.rx)/TAU);
+      v10RotTarget.x = tx; v10RotTarget.y = ty;
+    }
+    const dtMs = Math.max(4, Math.min(400, now - (frame.last || now)));
+    const k = 1 - Math.exp(-dtMs / 550);
+    rotX += (v10RotTarget.x - rotX)*k;
+    rotY += (v10RotTarget.y - rotY)*k;
+    if(Math.abs(v10RotTarget.x - rotX) < 0.002 && Math.abs(v10RotTarget.y - rotY) < 0.002){ rotX = v10RotTarget.x; rotY = v10RotTarget.y; }
+    v10SpinVel = 0;
+  } else {
+    rotY += AUTO_ROT + v10SpinVel; v10SpinVel *= 0.94;   // v10.0 clockwise auto-spin + drag momentum
+  }
+  frame.last = now;
+  refreshRotTrig();
   physicsStep();   // v8.0: bounded console-driven sim (rotation removed — flat atlas)
   cam.zoom += (cam.tz - cam.zoom)*0.09;
   cam.tx += (cam.ttx - cam.tx)*0.09;
@@ -2021,67 +2128,38 @@ function frame(now){
     /* A.T. hub label removed (Vincent, Aug 25 2026) */
   }
 
-  // edges — v10.0 glass ball: with NOTHING selected the sphere shows no edges
-  // at all (a pure dot cloud). On selection, only edges touching the picked
-  // node draw, as curved gold filaments (quadratic, midpoint bowed ~12% of the
-  // chord, perpendicular in screen space) with animated blood-flow dashes
-  // running INTO the selection + a comet head gliding from the far node in.
+  // edges — v10.1 glass ball: NOTHING moves until a node is clicked. On
+  // click only the selected node's relations draw, as animated DASHED gold
+  // filaments (quadratic, midpoint bowed ~12% of the chord) flowing INTO
+  // the selection. v10.1: the shooting comet heads are GONE (Vincent: "too
+  // much") and only focusEdges are revealed — capped at MAX_FOCUS_EDGES
+  // (strongest ~30) unless hold-deepdive lifted the cap.
   const focused = !!selected.id;
   if(focused){
     ctx.setLineDash([7,5]);
     ctx.lineDashOffset = -((t*46)%24);
     ctx.strokeStyle = 'rgba(217,185,120,0.70)';
     ctx.lineWidth = 1.6;
-    for(const e of G.edges){
+    for(const e of focusEdges){
       const a = nodeMap[e.source], b = nodeMap[e.target];
       if(!a || !b) continue;
       if(!growthVisible(a) || !growthVisible(b)) continue;
-      if(e.source!==selected.id && e.target!==selected.id) continue;   // non-focus edges: invisible
       const pa = projMap[e.source], pb = projMap[e.target];
       if(!pa || !pb) continue;
       const mx=(pa.x+pb.x)/2 + (pb.y-pa.y)*0.12, my=(pa.y+pb.y)/2 - (pb.x-pa.x)*0.12;
       ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.quadraticCurveTo(mx,my,pb.x,pb.y); ctx.stroke();
-      // comet trail: bright head glides along the quad Bezier into the selected node
-      const towardSel = (e.source===selected.id) ? pb : pa;
-      const head = projMap[(e.source===selected.id) ? e.target : e.source];
-      if(head){
-        const u = (t*0.55) % 1, iu = 1-u;
-        const hx = iu*iu*head.x + 2*iu*u*mx + u*u*towardSel.x;
-        const hy = iu*iu*head.y + 2*iu*u*my + u*u*towardSel.y;
-        ctx.setLineDash([]);
-        ctx.fillStyle='rgba(176,141,87,.9)';
-        ctx.beginPath(); ctx.arc(hx,hy,2.1,0,Math.PI*2); ctx.fill();
-        ctx.fillStyle='rgba(176,141,87,.16)';
-        ctx.beginPath(); ctx.arc(hx,hy,6.5,0,Math.PI*2); ctx.fill();
-        ctx.setLineDash([7,5]); ctx.lineDashOffset = -((t*46)%24);
-      }
     }
     ctx.setLineDash([]); ctx.lineDashOffset = 0;
   }
 
-  // fast node-to-node activity pulses along edges (v7.0: toggleable)
-  pulseTimer += 0.016;
-  if(GC.pulse && pulseTimer > 0.34){
-    pulseTimer = 0;
-    const hot = G.edges.filter(e=> hotFiles.has(e.source) || hotFiles.has(e.target));
-    const pool = hot.length ? hot : G.edges;
-    if(pool.length){ const e = pool[(Math.random()*pool.length)|0]; pulses.push({e, t:0, rev:Math.random()<0.5}); const s=nodeMap[e.source], d=nodeMap[e.target]; if(s) s.activity=Math.max(s.activity,0.6); if(d) d.activity=Math.max(d.activity,0.6); }
-  }
-  for(let i=pulses.length-1;i>=0;i--){
-    const pu = pulses[i]; pu.t += 0.05;
-    if(pu.t>=1){ pulses.splice(i,1); continue; }
-    const a = nodeMap[pu.e.source], b = nodeMap[pu.e.target];
-    if(!a || !b) continue;
-    if(!growthVisible(a) || !growthVisible(b)) { pulses.splice(i,1); continue; }
-    const pa = worldPos(a.id), pb = worldPos(b.id);
-    const tt = pu.rev ? 1-pu.t : pu.t;
-    const x3 = pa.x+(pb.x-pa.x)*tt, y3 = pa.y+(pb.y-pa.y)*tt, z3 = pa.z+(pb.z-pa.z)*tt;
-    const pr = project(x3,y3,z3);
-    const r = 3*pr.s + 1.2;
-    ctx.fillStyle='rgba(217,185,120,.95)';
-    ctx.beginPath(); ctx.arc(pr.x,pr.y,r,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='rgba(217,185,120,.15)';
-    ctx.beginPath(); ctx.arc(pr.x,pr.y,r*3.4,0,Math.PI*2); ctx.fill();
+  /* v10.1 pulse traffic REDESIGNED — Vincent: "the animation is a little too
+     much with the shooting comets; keep it simple with dashed lines." The
+     old behaviour fired straight-line pulses across ALL edges even with
+     nothing selected (the always-on "firework"). Now: at rest the ball is a
+     pure dot cloud + drift; the ONLY edge animation is the dashed filament
+     flow on the selected node's relations, gated by GC.pulse. */
+  if(focused && GC.pulse){
+    ctx.lineDashOffset = -((t*46)%24);   // dash flow toward the selection
   }
 
   // v9.1 gravity echo — expanding rings from the picked node (center of gravity)
@@ -2113,10 +2191,15 @@ function frame(now){
     else if(orbitFilter==='cron') alpha = n.type==='cron' ? 1 : 0.14;
     else if(orbitFilter==='files') alpha = n.type==='file' ? 1 : 0.14;
     else if(orbitFilter==='memory') alpha = n.type==='memory' ? 1 : 0.14;
-    // v10.0: back of the glass ball reads dimmer/blurred (agents keep full alpha)
-    if(n.type!=='agent' && pr) alpha *= Math.max(0.25, Math.min(1, (pr.s - 0.55) / 0.45 + 1));
+    /* v10.1: when a node is selected, its revealed relations (focusSet) are
+       PART of the focus — they render bright regardless of tab filter or
+       depth, so the dashed filaments land on lit nodes, never on ghosts
+       (the 044023 complaint). Only the unlinked remainder stays faded. */
+    const inFocus = focused && (focusEdgeNodes.has(n.id) || selected.id===n.id);
+    if(n.type!=='agent' && pr && !inFocus) alpha *= Math.max(0.25, Math.min(1, (pr.s - 0.55) / 0.45 + 1));
     if(selected.id===n.id || hoverId===n.id || highlightId===n.id) alpha = 1;
     else if(focused && !focusSet.has(n.id)) alpha = Math.max(alpha, 0.28);   // v9.1: softer dim — context stays visible
+    else if(focused && inFocus) alpha = 1;   // v10.1: related nodes glow alongside the primary
     drawNode(n, pr, focused, alpha);
     // agent name labels (reference style: label under every hub)
     if(n.type==='agent' && (GC.hubLabels || selected.id===n.id || hoverId===n.id)){
