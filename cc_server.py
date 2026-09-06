@@ -66,7 +66,7 @@ else:
     SCAN_DIRS = ["/relay", "/app"]
     # relay lives in a sibling container on the compose network ("relay" DNS name)
     RELAY_CANDIDATES = ["http://relay:8787"]
-SKIP_DIRS = {".git", "node_modules", "__pycache__", "dist", "tts_cache", ".research", "assets"}
+SKIP_DIRS = {".git", "node_modules", "__pycache__", "dist", "tts_cache", ".research", "assets", "qa"}
 SKIP_EXT = {".pyc", ".mp3"}
 
 # ---- auth gate (simple PIN/token) ----
@@ -179,6 +179,9 @@ def parse_agents():
 END_USER_EXTS = {".md", ".doc", ".docx", ".pdf", ".xlsx", ".xls", ".csv", ".txt",
                  ".pptx", ".png", ".jpg", ".jpeg", ".svg", ".gif", ".webp"}
 def scan_files():
+    now = time.time()
+    if _FILES_CACHE["data"] is not None and now - _FILES_CACHE["t"] < 30:
+        return _FILES_CACHE["data"]
     files, recent = [], []
     cutoff = time.time() - 48 * 3600
     for d in SCAN_DIRS:
@@ -214,6 +217,8 @@ def scan_files():
                     recent.append(entry)
     files.sort(key=lambda e: e["mtime"], reverse=True)
     recent.sort(key=lambda e: e["mtime"], reverse=True)
+    _FILES_CACHE["t"] = time.time()
+    _FILES_CACHE["data"] = (files, recent)
     return files, recent
 
 # ---- security: serve-path guards (repo is PUBLIC — never leak secrets) ----
@@ -549,6 +554,9 @@ def search_vault(q):
 
 _START = time.time()
 _MEMORY_CACHE = {"t": 0.0, "data": None}
+_FILES_CACHE = {"t": 0.0, "data": None}
+_RELAY_CACHE = {"t": 0.0, "data": None}
+_STATE_CACHE = {"t": 0.0, "data": None}
 
 def _zone_of(rel):
     top = rel.split(os.sep)[0] if os.sep in rel else rel
@@ -694,12 +702,15 @@ def read_preview(path):
 
 # ---- relay probe ----
 def probe_relay():
+    now = time.time()
+    if _RELAY_CACHE["data"] is not None and now - _RELAY_CACHE["t"] < 15:
+        return _RELAY_CACHE["data"]
     vps = local = False
     vps_agents = 0
     try:
         req = urllib.request.Request(RELAY_CANDIDATES[0] + "/health")
         req.add_header("User-Agent", "Atrium-CC/1.0")
-        with urllib.request.urlopen(req, timeout=4) as r:
+        with urllib.request.urlopen(req, timeout=2) as r:
             d = json.loads(r.read().decode())
             vps = d.get("status") == "ok"
             vps_agents = d.get("agents", 0)
@@ -711,8 +722,11 @@ def probe_relay():
             local = r.status == 200
     except Exception:
         local = False
-    return {"vps": vps, "vps_agents": vps_agents, "local": local,
-            "url": RELAY_CANDIDATES[0]}
+    out = {"vps": vps, "vps_agents": vps_agents, "local": local,
+           "url": RELAY_CANDIDATES[0]}
+    _RELAY_CACHE["t"] = time.time()
+    _RELAY_CACHE["data"] = out
+    return out
 
 # ---- knowledge graph (real: agents + files + content-derived links) ----
 TEXT_EXTS = {".md", ".py", ".js", ".json", ".html", ".css", ".txt", ".csv", ".yml", ".yaml", ".sh"}
@@ -1066,6 +1080,9 @@ def build_graph(files, agents):
 
 # ---- build full state ----
 def build_state():
+    now = time.time()
+    if _STATE_CACHE["data"] is not None and now - _STATE_CACHE["t"] < 10:
+        return _STATE_CACHE["data"]
     files, recent = scan_files()
     agents = parse_agents()
     mem = build_memory()
@@ -1080,7 +1097,7 @@ def build_state():
             act[a]["files"].append({"name": e["name"], "dir": e["dir"], "ago": time_ago(e["mtime"])})
     mem_ts = [m["mtime"] for m in mem["nodes"]] or [0]
     file_ts = [f["mtime"] for f in files] or [0]
-    return {
+    out = {
         "agents": agents,
         "files": [{"name": f["name"], "dir": f["dir"], "ext": f["ext"], "size": f["size"], "mtime": f["mtime"], "owner": f["owner"], "path": f["path"]} for f in files[:400]],
         "activity": act,
@@ -1111,7 +1128,9 @@ def build_state():
         "platform": "windows" if IS_WINDOWS else "linux",
         "now": datetime.now().isoformat(timespec="seconds"),
     }
-
+    _STATE_CACHE["t"] = time.time()
+    _STATE_CACHE["data"] = out
+    return out
 def time_ago(ts):
     s = int(time.time() - ts)
     if s < 60: return "just now"
