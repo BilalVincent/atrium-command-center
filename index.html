@@ -1282,10 +1282,8 @@ function applyState(){
   markHot();
   if(nodes.length !== lastNodeCount){
     computeLayout(); lastNodeCount = nodes.length;
-    physicsHomeSnapshot();          // v8.0: re-anchor physics to the fresh atlas
-    physicsApplySettings();         // v8.0: re-apply persisted slider settings
     growthIndex(); growthApply();   // v8.0: rebuild the growth timeline
-    if(!selected.id){ const f = atlasFitZoom(); cam.tz = f; }
+    scheduleFrame();                // v11.0: paused-rAF loop must repaint after layout
   }
   renderAgents(); renderChats(); renderCron(); renderAssets(); renderMemoryTab(); renderCalendar();
   applyMemoryState();
@@ -1308,6 +1306,7 @@ function refreshState(){
   applyMemoryState();
   if($('#dashboard').classList.contains('show')) renderDashboard();
   const n = nodeMap[selected.id]; if(n) renderRightStable(n);
+  scheduleFrame();   // v11.0: hotFiles/activity changed — repaint even when rAF paused
 }
 function markHot(){
   const cutoff = Date.now()/1000 - 48*3600;
@@ -1316,193 +1315,188 @@ function markHot(){
 }
 function computeLayout(){
   layout = {};
-  /* ============================================================
-     v10.0 GLASS BALL — 3D Fibonacci sphere (replaces v8 flat atlas).
-     - Agents + end-user files + memories sit ON the sphere surface.
-     - Deterministic: seeded PRNG per node id -> same data, same ball.
-     - Sphere radius grows with node count (sqrt) so it never crowds;
-       Vincent's rule: preserve space for scaling as inputs grow.
-     - Skills / conversations / cron stay OFF the ball default view;
-       filter pills still reveal them (belt ring behind the sphere).
-     ============================================================ */
-  function hashStr(s){ let h=2166136261>>>0; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; }
-  function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
-
-  // dedupe by id (last wins), deterministic order
-  const uniq = [];
-  { const seenIds = new Set();
-    for(let k=nodes.length-1;k>=0;k--){ if(!seenIds.has(nodes[k].id)){ seenIds.add(nodes[k].id); uniq.push(nodes[k]); } }
-    uniq.reverse(); }
-
-  /* ---- globe population: agents, files, memories, profiles ---- */
+  const hashStr = s => { let h=2166136261>>>0; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); } return h>>>0; };
+  // B1: normalize — dedupe by id (first wins), stable slotKey order
+  const seen = new Set(); const uniq = [];
+  for(const n of nodes){ if(!n.id || seen.has(n.id)) continue; seen.add(n.id); uniq.push(n); }
   const globe = uniq.filter(n=> n.type==='agent' || n.type==='file' || n.type==='memory' || n.type==='profile');
   const far   = uniq.filter(n=> n.type==='skill'  || n.type==='conversation' || n.type==='cron');
-
-  // sphere radius grows with population but stays stable when nodes archive
-  const N = Math.max(globe.length, 24);
-  const R = 170 * Math.pow(N/120, 0.30);          // 120 nodes -> 170px; grows gently
-
-  // Fibonacci sphere: even spread, golden-angle per index + id-hash seed
-  const GA = Math.PI * (3 - Math.sqrt(5));
-  globe.forEach((n,i)=>{
-    const y = 1 - (i + 0.5) / N * 2;              // -1..1
-    const rad = Math.sqrt(Math.max(0, 1 - y*y));
-    /* v10.0.1: agents get their own DETERMINISTIC spread across the sphere —
-       sequential Fibonacci indices 0..6 stack all 7 at the north pole,
-       garbling every label into one unreadable clump (QA screenshot proof). */
-    const seq = n.type==='agent' ? (hashStr('agent-slot|'+n.id) % N) : i;
-    const theta = GA*seq + (hashStr(n.id) % 97) * 0.021;   // deterministic jitter, no clumps
-    layout[n.id] = { x: Math.cos(theta)*rad*R, y: y*R*0.94, z: Math.sin(theta)*rad*R };
+  // B2: deterministic Fibonacci sphere — M REAL slots, same slot for lat+lon
+  const M = Math.max(globe.length, 1);
+  const R = clamp(BASE_RADIUS * Math.sqrt(Math.max(M, REF_COUNT) / REF_COUNT), MIN_R, MAX_R) * PHYS.repel;
+  const ordered = globe.map(n => ({ n, k: hashStr(n.id) })).sort((a,b)=> a.k - b.k);
+  ordered.forEach(({n}, slot)=>{
+    const y = 1 - 2 * ((slot + 0.5) / M);
+    const radial = Math.sqrt(Math.max(0, 1 - y*y));
+    const theta = GLOBAL_PHASE + GOLDEN_ANGLE * slot;
+    const dir = v3norm([radial*Math.cos(theta), y, radial*Math.sin(theta)]);
+    const shell = R * (KIND_LIFT[n.type] || 1);
+    layout[n.id] = { modelPosition: v3scale(dir, shell), shellRadius: shell, slotKey: hashStr(n.id) };
   });
-
-  // agents get a slight surface lift so the core team reads first
-  uniq.filter(n=>n.type==='agent').forEach((a)=>{
-    const p = layout[a.id]; if(!p) return;
-    const lr = Math.hypot(p.x,p.y,p.z) || 1;
-    p.x *= R*1.02/lr; p.y *= R*0.94*1.02/lr; p.z *= R*1.02/lr;
-  });
-
-  // far layers: outer belt BEHIND the ball (skills/convs/cron — filter pills reveal)
+  // far belt (skills/convs/cron — filter pills reveal): deterministic, no centroid shift
   if(far.length){
-    const beltR0 = R + 90;
-    const bandW = 60 + 16*Math.sqrt(far.length);
-    far.forEach((n,i)=>{
+    const beltR0 = R + 90, bandW = 60 + 16*Math.sqrt(far.length);
+    far.forEach(n=>{
       const y = 1 - ((hashStr(n.id)%997)/997)*2;
-      const rad = Math.sqrt(Math.max(0,1-y*y));
+      const radial = Math.sqrt(Math.max(0,1-y*y));
       const theta = (hashStr(n.id+'|t')%1000)/1000*Math.PI*2;
-      const rr = beltR0 + (hashStr(n.id+'|r') % 1000)/1000 * bandW;
-      layout[n.id] = { x: Math.cos(theta)*rad*rr, y: y*rr*0.9, z: Math.sin(theta)*rad*rr };
+      const rr = beltR0 + (hashStr(n.id+'|r')%1000)/1000*bandW;
+      layout[n.id] = { modelPosition: [Math.cos(theta)*radial*rr, y*rr*0.9, Math.sin(theta)*radial*rr], shellRadius: rr, slotKey: hashStr(n.id) };
     });
   }
-
-  // centroid lock: keep the ball centered as it grows
-  let mx=0,my=0,mz=0,cnt=0;
-  uniq.forEach(n=>{ const p=layout[n.id]; if(p){ mx+=p.x; my+=p.y; mz+=(p.z||0); cnt++; } });
-  if(cnt){ mx/=cnt; my/=cnt; mz/=cnt; uniq.forEach(n=>{ const p=layout[n.id]; if(p){ p.x-=mx; p.y-=my; p.z=(p.z||0)-mz; } }); }
-
-  // fit camera: default zoom shows the whole ball
+  // fit camera from the surface sphere
   let ext = 200;
-  uniq.forEach(n=>{ const p=layout[n.id]; if(p){ ext = Math.max(ext, Math.hypot(p.x,p.y,(p.z||0))); } });
+  for(const id in layout){ const p = layout[id].modelPosition; ext = Math.max(ext, Math.hypot(p[0],p[1],p[2])); }
   window.__atlasExtent = ext;
+  camera.distance = R * CAM_DIST_FACTOR;
+  fitZoom = computeFitZoom();
+  if(!selected.id){ camera.targetZoom = fitZoom; camera.targetPanX = 0; camera.targetPanY = 0; }
 }
 
 /* ============================================================
-   v8.0 LIVE PHYSICS (2D, BOUNDED) — console sliders re-form the
-   atlas WITHOUT destroying it. Guarantees Vincent asked for:
-   - Repel pushes satellites APART but every node stays ANCHORED to
-     its home position (anchor strength scales with displacement),
-     so nothing can collapse to zero or fly away.
-   - Link length sets the REST LENGTH of spokes (0.5x-2.5x) —
-     edges never disappear; they breathe.
-   - Settings persist in localStorage; restored on every load and
-     RE-APPLIED to any newly computed layout.
+   v11.0 CORRECTED ENGINE — quaternion globe orientation
+   (replaces the v10.1 Euler/2D-physics orbit engine; ported from
+   ~/quro-command-site/orbit-v3.html per design-brief/v11 spec)
    ============================================================ */
+let orientation = { x:0, y:0, z:0, w:1 };        // quatIdentity
+let angularVelocity = [0, 0, 0];                  // rad/s
+let focusTarget = null;                           // quaternion | null
+const AUTO_SPEED = 0.027;                         // rad/s (was 0.00045 rad/frame @60fps)
+const SPIN_DAMPING = 3.0;                         // 1/s momentum decay
+const DRAG_SENS = 0.0042;                         // rad per px
+const MOVE_THRESHOLD = 4;                          // px before drag/rotate
+const HOLD_MS = 550;
+const NEAR_PLANE = 12;
+const CAM_DIST_FACTOR = 3.0;
+const BASE_RADIUS = 170;
+const REF_COUNT = 33;
+const MIN_R = 90, MAX_R = 340;
+const MIN_ZOOM = 0.4, MAX_ZOOM = 2.5;
+const MIN_HIT = 10;
+const KIND_LIFT = { agent: 1.025, profile: 1.015, file: 1.000, memory: 0.990 };
+const FRONT_DIRECTION = [0, 0, 1];                // camera on +Z looking at origin
+const WORLD_UP = [0, 1, 0];
+const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+const GLOBAL_PHASE = 0;
+const FOCUS_TAU = 0.45;                            // s
+const CAM_TAU = 0.35;                              // s
+const reducedMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+const autoSpin = !reducedMotion;
+
+const camera = {
+  distance: 0, focalLength: 540, zoom: 1, targetZoom: 1,
+  panX: 0, panY: 0, targetPanX: 0, targetPanY: 0, nearPlane: NEAR_PLANE
+};
+let fitZoom = 1;
+const selected = { id: null };                    // KEEP Atrium convention (chrome reads selected.id)
+let orbitFilter = 'agents';                       // KEEP
+let focusSet = new Set();                         // KEEP
+let hoverId = null;                               // KEEP
+let highlightId = null;                           // KEEP
+const pulses = [];                                // KEEP (unused by new engine, harmless)
+const flashes = [];                               // KEEP
+const ripples = [];                               // KEEP
+let particles = [];                               // KEEP (seed block stays)
+let audioCtx = null;                              // KEEP
+
+/* v11.0: Graph Console "spacing" slider repurposed as sphere-radius scale */
 const PHYS = { repel: 1.0, link: 1.0, active: false, cool: 0, home: {} };
-/* v9.3: displacement map — the slider-implied offset per node. Survives
-   /state re-layouts (computeLayout() rebuilds layout from scratch every
-   poll where the node count changed, which used to WIPE all physics
-   displacement — the silent reason the console "did nothing"). */
-const PHYS_OFF = {};
-function physicsWake(){ PHYS.active = true; PHYS.cool = 0; }
-function physicsHomeSnapshot(){
-  PHYS.home = {};
-  for(const id in layout) PHYS.home[id] = { x: layout[id].x, y: layout[id].y, z: 0 };
-}
-function physicsSaveOffsets(){
-  for(const id in PHYS.home){
-    const p = layout[id], h = PHYS.home[id];
-    if(!p) { delete PHYS_OFF[id]; continue; }
-    PHYS_OFF[id] = { x: p.x - h.x, y: p.y - h.y };
-  }
-}
-function physicsRestoreOffsets(){
-  for(const id in PHYS_OFF){
-    const p = layout[id], o = PHYS_OFF[id];
-    if(!p) { delete PHYS_OFF[id]; continue; }
-    p.x += o.x; p.y += o.y;
-  }
-}
-function physicsStep(){
-  if(!PHYS.active || nodes.length<3) return;
-  const list = nodes.filter(n=> layout[n.id]);
-  if(list.length < 3){ PHYS.active=false; return; }
-  const pos = list.map(n=> layout[n.id]);
-  const acc = pos.map(()=>({x:0,y:0,z:0}));
-  // v9.3: repulsion reach raised 46 -> 130px to match the new drift bound
-  const REP_CUT = 130;
-  // bounded repulsion (sampled pairs, capped)
-  const K_REP = 0.05 * PHYS.repel;
-  const STRIDE = Math.max(1, Math.ceil(list.length/140));
-  for(let i=0;i<pos.length;i++){
-    for(let j=i+STRIDE;j<pos.length;j+=STRIDE*3){
-      let dx=pos[i].x-pos[j].x, dy=pos[i].y-pos[j].y;
-      const d2 = dx*dx+dy*dy;
-      if(d2 >= REP_CUT*REP_CUT || d2 < 1e-6) continue;
-      const d = Math.sqrt(d2);
-      let f = K_REP*(REP_CUT-d)/d; if(f>0.9) f=0.9;
-      dx*=f; dy*=f;
-      acc[i].x+=dx; acc[i].y+=dy;
-      acc[j].x-=dx; acc[j].y-=dy;
-    }
-  }
-  // v9.3 FIX (was dead code — the loop bailed before doing anything):
-  // springs along real edges — rest length scales with the Link length
-  // slider, so the slider now visibly stretches/compresses the spokes.
-  const REST = 46 * PHYS.link;
-  const K_EDGE = 0.010;
-  const idx = new Map(); list.forEach((n,i)=> idx.set(n.id, i));
-  (G.edges||[]).forEach(e=>{
-    const ia = idx.get(e.source), ib = idx.get(e.target);
-    if(ia==null || ib==null) return;
-    let dx = pos[ib].x-pos[ia].x, dy = pos[ib].y-pos[ia].y, dz = (pos[ib].z||0)-(pos[ia].z||0);
-    const d = Math.max(1, Math.hypot(dx,dy,dz));
-    const f = K_EDGE * (d - REST) / d;
-    dx*=f; dy*=f;
-    acc[ia].x+=dx; acc[ia].y+=dy;
-    acc[ib].x-=dx; acc[ib].y-=dy;
-  });
-  // integrate with damping + STRONG home anchor (the anti-collapse guarantee):
-  // pull toward home grows with displacement, so max drift is bounded ~40px.
-  let KE = 0;
-  // v9.3: drift bound raised 42 -> 130px so slider changes are actually
-  // visible at fit-zoom (42px was ~15 screen px — imperceptible).
-  const MAX_DRIFT = 130;
-  for(let i=0;i<pos.length;i++){
-    const n = list[i], p = pos[i], f = acc[i];
-    const home = PHYS.home[n.id] || p;
-    let hx = p.x - home.x, hy = p.y - home.y;
-    const hd = Math.hypot(hx, hy);
-    if(hd > MAX_DRIFT){ const s = MAX_DRIFT/hd; p.x = home.x + hx*s; p.y = home.y + hy*s; }
-    const anchor = 0.10 + (hd/MAX_DRIFT)*0.22;
-    p.x += f.x*0.82 - hx*anchor;
-    p.y += f.y*0.82 - hy*anchor;
-    if(typeof p.z !== 'number' || !isFinite(p.z)) p.z = 0;
-    KE += f.x*f.x + f.y*f.y;
-  }
-  physicsSaveOffsets();
-  PHYS.cool = KE > 0.25 ? 0 : PHYS.cool + 1;
-  if(PHYS.cool > 80) PHYS.active = false;
-}
-function physicsApplySettings(){
-  // re-run layout from scratch, then re-apply the settled displacement
-  // implied by current sliders (deterministic, no drift accumulation)
-  physicsHomeSnapshot();
-  physicsRestoreOffsets();
-  if(PHYS.repel !== 1.0 || PHYS.link !== 1.0){
-    PHYS.active = true; PHYS.cool = 0;
-  }
+
+/* ---------- small math ---------- */
+function clamp(v, a, b){ return v < a ? a : v > b ? b : v; }
+function smoothstep(e0, e1, x){
+  const t = clamp((x - e0) / (e1 - e0), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
-function atlasFitZoom(){
-  /* measure the scene box LIVE (W/H can be stale pre-layout in headless/first paint) */
-  let bw = W, bh = H;
-  try{
-    const r = canvas.parentElement.getBoundingClientRect();
-    if(r.width > 40) bw = r.width;
-    if(r.height > 40) bh = r.height;
-  }catch(e){}
-  const ext = window.__atlasExtent || 320;
-  return Math.max(0.30, Math.min(1.4, Math.min(bw, bh) * 0.47 / ext));
+/* ---------- vec3 ---------- */
+function v3len(a){ return Math.hypot(a[0], a[1], a[2]); }
+function v3norm(a){
+  const l = v3len(a);
+  if (l < 1e-9) return [0, 0, 0];
+  return [a[0] / l, a[1] / l, a[2] / l];
+}
+function v3dot(a, b){ return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+function v3cross(a, b){
+  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+}
+function v3scale(a, s){ return [a[0] * s, a[1] * s, a[2] * s]; }
+
+/* ---------- quaternions ---------- */
+function quatIdentity(){ return { x: 0, y: 0, z: 0, w: 1 }; }
+function quatFromAxisAngle(axis, angle){
+  const a = v3norm(axis);
+  const s = Math.sin(angle / 2);
+  return { x: a[0] * s, y: a[1] * s, z: a[2] * s, w: Math.cos(angle / 2) };
+}
+function quatNormalize(q){
+  const l = Math.hypot(q.x, q.y, q.z, q.w);
+  if (l < 1e-9) return quatIdentity();
+  return { x: q.x / l, y: q.y / l, z: q.z / l, w: q.w / l };
+}
+function quatMultiply(a, b){
+  return {
+    x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+    y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+    z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+    w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z
+  };
+}
+function quatConjugate(q){ return { x: -q.x, y: -q.y, z: -q.z, w: q.w }; }
+function rotateVector(q, v){
+  const qx = q.x, qy = q.y, qz = q.z, qw = q.w;
+  const tx = 2 * (qy * v[2] - qz * v[1]);
+  const ty = 2 * (qz * v[0] - qx * v[2]);
+  const tz = 2 * (qx * v[1] - qy * v[0]);
+  return [
+    v[0] + qw * tx + (qy * tz - qz * ty),
+    v[1] + qw * ty + (qz * tx - qx * tz),
+    v[2] + qw * tz + (qx * ty - qy * tx)
+  ];
+}
+function quatFromUnitVectors(a, b){
+  const av = v3norm(a), bv = v3norm(b);
+  const d = clamp(v3dot(av, bv), -1, 1);
+  if (d > 1 - 1e-6) return quatIdentity();
+  if (d < -1 + 1e-6){
+    // antiparallel: deterministic perpendicular axis (A10)
+    const axis = (Math.abs(av[0]) < 0.9)
+      ? v3norm(v3cross(av, [1, 0, 0]))
+      : v3norm(v3cross(av, [0, 1, 0]));
+    return quatFromAxisAngle(axis, Math.PI);
+  }
+  const axis = v3norm(v3cross(av, bv));
+  return quatFromAxisAngle(axis, Math.acos(d));
+}
+function quatAngleBetween(a, b){
+  const d = clamp(Math.abs(a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w), 0, 1);
+  return 2 * Math.acos(d);
+}
+function slerpShortest(a, b, t){
+  let bx = b.x, by = b.y, bz = b.z, bw = b.w;
+  let d = a.x * bx + a.y * by + a.z * bz + a.w * bw;
+  if (d < 0){ bx = -bx; by = -by; bz = -bz; bw = -bw; d = -d; }
+  if (d > 0.9995){
+    return quatNormalize({
+      x: a.x + (bx - a.x) * t, y: a.y + (by - a.y) * t,
+      z: a.z + (bz - a.z) * t, w: a.w + (bw - a.w) * t
+    });
+  }
+  const th0 = Math.acos(d);
+  const th = th0 * t;
+  const s0 = Math.cos(th) - d * Math.sin(th) / Math.sin(th0);
+  const s1 = Math.sin(th) / Math.sin(th0);
+  return quatNormalize({
+    x: s0 * a.x + s1 * bx, y: s0 * a.y + s1 * by,
+    z: s0 * a.z + s1 * bz, w: s0 * a.w + s1 * bw
+  });
+}
+
+function computeFitZoom(){
+  if(W < 10 || H < 10) return 1;
+  const frontDepth = Math.max(1, camera.distance - (window.__atlasExtent || 320));
+  const diam = 2 * (window.__atlasExtent || 320) * camera.focalLength / frontDepth;
+  return clamp(0.6 * Math.min(W, H) / diam, 0.5, 1.8);
 }
 /* ============================================================
    CAMERA / PROJECTION
@@ -1516,8 +1510,12 @@ function resize(){
   canvas.width = Math.max(1, W*DPR); canvas.height = Math.max(1, H*DPR);
   ctx.setTransform(DPR,0,0,DPR,0,0);
   cx = W/2; cy = H*0.52;
+  camera.focalLength = clamp(Math.min(W,H)*0.5, 380, 640);
+  fitZoom = computeFitZoom();
+  if(!selected.id){ camera.targetZoom = fitZoom; camera.targetPanX = 0; camera.targetPanY = 0; }
+  scheduleFrame();   // v11.0: resize must repaint under the paused-rAF loop
 }
-window.addEventListener('resize', ()=>{ resize(); if(!selected.id){ const f = atlasFitZoom(); cam.tz = f; } }); resize();
+window.addEventListener('resize', ()=>{ resize(); if(!selected.id){ camera.targetZoom = fitZoom; } }); resize();
 
 /* v10.0: brand mark toggles the left rail (expand/collapse everything) */
 (function(){
@@ -1526,71 +1524,12 @@ window.addEventListener('resize', ()=>{ resize(); if(!selected.id){ const f = at
   btn.addEventListener('click', ()=> app.classList.toggle('v10-rail-hidden'));
 })();
 
-/* v10.0 GLASS BALL: 3D rotation is back. Auto-spin clockwise at the
-   classic drift rate; drag on empty space = spin the ball; drag starting
-   ON a node = move that node on the ball surface (not select). */
-let rotY = 0, rotX = 0;
-const AUTO_ROT = 0.00045;          // clockwise drift (matches old orbit rate)
-let v10SpinVel = 0;                 // momentum from drag spins
-/* v10.1: when a node is selected the ball FREEZES on it — auto-spin, drag
-   momentum and pulse traffic all pause so focus stays put until deselect.
-   The globe then eases so the picked node faces front-center. */
-let v10RotTarget = null;            // {x,y} eased rotation while selected
-const MIN_ZOOM = 0.30, MAX_ZOOM = 3.0;
-let cam = { zoom:0.45, tx:0, ty:0, tz:0.45, ttx:0, tty:0 };   // tz re-fitted once layout computes
-const selected = { id: null };
-let orbitFilter = 'agents';
-let focusSet = new Set();
-let hoverId = null;
-let highlightId = null;   // search hover highlight
-const pulses = [];
-const flashes = [];
-const ripples = [];   // v9.1 center-of-gravity echo on selection (esp. edge-less nodes)
-let particles = [];
-let audioCtx = null;
+/* v11.0: brand mark toggles the left rail (expand/collapse everything) — see above */
+/* particles seed (v11.0: kept — starfield renders from this) */
 (function seed(){ for(let i=0;i<220;i++) particles.push({x:(Math.random()*2-1), y:(Math.random()*2-1), z:Math.random()*0.9+0.1, tw:Math.random()*6.28, sp:0.2+Math.random()*0.6, size:0.5+Math.random()*1.5}); })();
 
-/* v10.0.1 PERF: rotation trig memoized per frame-set. rotate3 used to run
-   4 Math.cos/sin calls on EVERY invocation — with callers in the projMap
-   loop (~1350/frame), hitNode (full sweep on every pointermove), pulses
-   and labels, that was ~8k trig calls + 2×1350 object allocations per
-   frame on a 4-core box. Now: trig computed ONCE per rotX/rotY change in
-   worldPos/hitNode (the hot paths fall through to rotate3Cached). */
-let _rx = 1e9, _ry = 1e9, _cosY = 1, _sinY = 0, _cosX = 1, _sinX = 0;
-function refreshRotTrig(){
-  if(rotX !== _rx || rotY !== _ry){
-    _rx = rotX; _ry = rotY;
-    _cosY = Math.cos(_ry); _sinY = Math.sin(_ry);
-    _cosX = Math.cos(_rx); _sinX = Math.sin(_rx);
-  }
-}
-function rotate3(x,y,z,rx,ry){
-  let c=Math.cos(ry), s=Math.sin(ry);
-  const x1=x*c + z*s, z1=-x*s + z*c;
-  c=Math.cos(rx); s=Math.sin(rx);
-  const y1=y*c - z1*s, z2=y*s + z1*c;
-  return {x:x1, y:y1, z:z2};
-}
-function rotate3Cached(x,y,z){
-  refreshRotTrig();
-  const x1 = x*_cosY + z*_sinY, z1 = -x*_sinY + z*_cosY;
-  const y1 = y*_cosX - z1*_sinX, z2 = y*_sinX + z1*_cosX;
-  return {x:x1, y:y1, z:z2};
-}
-const FOCAL = 560;
-function worldPos(id){
-  /* v8.0.1 FIX: the flat atlas stores {x,y} only — a missing z used to enter
-     rotate3 as undefined and poison every projection with NaN (nodes invisible
-     while the cx/cy-drawn glow + label still rendered). Default z to 0. */
-  const p = layout[id] || {x:0,y:0,z:0};
-  const z = (typeof p.z === 'number' && isFinite(p.z)) ? p.z : 0;
-  return rotate3Cached(p.x, p.y, z);
-}
-/* v10.0: clamp behind-camera points (z can cross -FOCAL when the outer belt,
-   radius ~R+90+, swings around during spin) — naive FOCAL/(FOCAL+z) goes
-   negative there and arc() throws IndexSizeError. Near-plane nodes shrink to
-   a speck instead of exploding; far side is untouched. */
-function project(x,y,z){ const d = FOCAL+z; const s = (d <= 1 ? 0.012 : Math.min(FOCAL/d, 2.8)) * cam.zoom; return {x: cx + x*s + cam.tx, y: cy + y*s + cam.ty, s}; }
+/* v11.0: rotation/projection helpers replaced by the quaternion engine
+   (rotateVector + projectNode/projectAll in the projection section below). */
 
 function isReadableNode(n){
   if(!n) return false;
@@ -1644,12 +1583,94 @@ const glowSprite = (()=>{
 })();
 
 /* ============================================================
+   v11.0 PROJECTION — quaternion camera, near-plane clip, hit grid
+   ============================================================ */
+function projectNode(n){
+  const pt = layout[n.id];
+  if(!pt) return null;
+  const rotated = rotateVector(orientation, pt.modelPosition);
+  if(!Number.isFinite(rotated[0]) || !Number.isFinite(rotated[1]) || !Number.isFinite(rotated[2])) return null;
+  const cameraDepth = camera.distance - rotated[2];
+  if(cameraDepth <= camera.nearPlane) return null;
+  const scale = (camera.focalLength / cameraDepth) * camera.zoom;
+  if(!Number.isFinite(scale) || scale <= 0) return null;
+  const screenX = cx + rotated[0]*scale + camera.panX;
+  const screenY = cy - rotated[1]*scale + camera.panY;
+  const dirToCam = v3norm([0-rotated[0], 0-rotated[1], camera.distance-rotated[2]]);
+  const normal = v3norm(rotated);
+  const frontness = v3dot(normal, dirToCam);
+  const hemiAlpha = 0.12 + 0.88 * smoothstep(-0.25, 0.4, frontness);
+  // Atrium size logic (mirrors drawNode): agent 18, readable 13, file 10*fileClsScale, memory 13/15, cron 13, else 6.5
+  let rad;
+  if(n.type==='agent') rad = 18;
+  else if(n.type==='file') rad = (isReadableNode(n)?10:6.5) * fileClsScale();
+  else if(n.type==='memory') rad = (n.index?15:13);
+  else if(n.type==='cron') rad = 13;
+  else rad = isReadableNode(n) ? 13 : 6.5;
+  const drawRadius = clamp(rad * scale, 4, 40);
+  return { id: n.id, visible: true, screenX, screenY, cameraDepth, scale, frontness, hemiAlpha, drawRadius };
+}
+const projMap = {};
+let projected = [];
+const GRID = 48;
+const hitGrid = new Map();
+function projectAll(){
+  for(const k in projMap) delete projMap[k];
+  projected = [];
+  for(const n of nodes){
+    if(!growthVisible(n)) continue;
+    const pr = projectNode(n);
+    if(!pr) continue;
+    projMap[n.id] = pr;
+    if(pr.screenX < -60 || pr.screenX > W+60 || pr.screenY < -60 || pr.screenY > H+60) continue;
+    projected.push(pr);
+  }
+  projected.sort((a,b)=>{
+    if(b.cameraDepth !== a.cameraDepth) return b.cameraDepth - a.cameraDepth;
+    const ka = layout[a.id] ? layout[a.id].slotKey : 0;
+    const kb = layout[b.id] ? layout[b.id].slotKey : 0;
+    return ka - kb;
+  });
+  rebuildHitGrid();
+}
+function rebuildHitGrid(){
+  hitGrid.clear();
+  for(const pr of projected){
+    if(!isClickableNode(nodeMap[pr.id])) continue;
+    const hr = Math.max(pr.drawRadius, MIN_HIT);
+    const x0 = Math.floor((pr.screenX-hr)/GRID), x1 = Math.floor((pr.screenX+hr)/GRID);
+    const y0 = Math.floor((pr.screenY-hr)/GRID), y1 = Math.floor((pr.screenY+hr)/GRID);
+    for(let gx=x0; gx<=x1; gx++) for(let gy=y0; gy<=y1; gy++){
+      const key = gx+','+gy;
+      let cell = hitGrid.get(key); if(!cell){ cell=[]; hitGrid.set(key,cell); }
+      cell.push(pr.id);
+    }
+  }
+}
+function hitTest(x, y){
+  const gx = Math.floor(x/GRID), gy = Math.floor(y/GRID);
+  let best=null, bestD=Infinity, bestDepth=Infinity;
+  const seen = new Set();
+  for(let dx=-1; dx<=1; dx++) for(let dy=-1; dy<=1; dy++){
+    const cell = hitGrid.get((gx+dx)+','+(gy+dy));
+    if(!cell) continue;
+    for(const id of cell){
+      if(seen.has(id)) continue; seen.add(id);
+      const pr = projMap[id];
+      if(!pr || !pr.visible) continue;
+      const hr = Math.max(pr.drawRadius, MIN_HIT);
+      const d = Math.hypot(x-pr.screenX, y-pr.screenY);
+      if(d <= hr && (d < bestD || (d===bestD && pr.cameraDepth < bestDepth))){ best=id; bestD=d; bestDepth=pr.cameraDepth; }
+    }
+  }
+  return best;
+}
+
+/* ============================================================
    POINTER / DRAG / ZOOM / FOCUS
    ============================================================ */
 const wrap = $('#sceneWrap');
-let drag=null, pinch=null;
-// v10.0 helpers: node-drag + hold-deepdive state
-let v10NodeDrag = null;              // {id, } while dragging a node
+// v10.0 helpers: hold-deepdive state (v11.0: node-drag is now ray-sphere)
 let v10HoldTimer = null, v10HoldFired = false;
 function v10ShowHold(on){
   const f = document.querySelector('.v10-hold-flash');
@@ -1662,170 +1683,283 @@ function v10ShowHold(on){
   const el = document.querySelector('.v10-hold-flash');
   if(el) el.classList.toggle('show', !!on);
 }
-wrap.addEventListener('pointerdown', e=>{
-  drag={x:e.clientX,y:e.clientY,moved:false,id:e.pointerId};
-  canvas.setPointerCapture(e.pointerId); showTip(false);
-  /* v10.0.1: ALWAYS reset the hold flag on a fresh press — if a previous
-     hold fired deep-dive, this flag must clear or empty-space taps forever
-     fail to deselect (review risk #1). */
-  v10HoldFired = false;
-  // v10.0: did the press land ON a node?
-  const r = canvas.getBoundingClientRect();
-  const hit = hitNode(e.clientX-r.left, e.clientY-r.top);
-  drag.hit = hit;
-  if(hit && !pinch){
-    v10HoldTimer = setTimeout(()=>{
-      v10HoldFired = true;
-      v10ShowHold(true);
-      const n = nodeMap[hit];
-      if(n && isClickableNode(n)) selectNodeDeep(hit);   // hold = deep-dive relations
-    }, 550);
+
+/* ============================================================
+   v11.0 GESTURE STATE MACHINE (ported from orbit-v3.html A18)
+   Attached to #sceneWrap; coords are canvas-rect relative.
+   v10.1 lock kept: empty-space drag while a node is selected is
+   ignored (no deselect, no rotation) — click-focus discipline.
+   ============================================================ */
+const gesture = {
+  mode: 'IDLE',            // IDLE | PRESS_NODE | PRESS_SPACE | DRAG_NODE | ROTATE_GLOBE | PINCH_ZOOM | HOLD_FOCUS
+  primaryId: null,
+  pointers: new Map(),
+  pressTargetId: null,
+  pressX: 0, pressY: 0,
+  lastX: 0, lastY: 0,
+  moved: false,
+  holdTimer: null,
+  holdFired: false,
+  pinchStartDist: 0,
+  pinchStartZoom: 1,
+  dragNodeId: null,
+  lastMoveTime: 0
+};
+function cancelHold(){
+  if (gesture.holdTimer){ clearTimeout(gesture.holdTimer); gesture.holdTimer = null; }
+}
+function applyPinch(){
+  const pts = [...gesture.pointers.values()];
+  if (pts.length < 2) return;
+  const d = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+  const mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+  if (gesture.pinchStartDist > 0){
+    const target = clamp(gesture.pinchStartZoom * d / gesture.pinchStartDist, MIN_ZOOM, MAX_ZOOM);
+    zoomAtScreenPoint(target, mx, my);
   }
-});
-wrap.addEventListener('pointermove', e=>{
+}
+/* ---------- B11: node drag via ray-sphere ---------- */
+function dragNodeAt(sx, sy){
+  const id = gesture.dragNodeId;
+  const pt = layout[id];
+  if (!pt) return;
+  const ndcX = (sx - cx - camera.panX) / (camera.focalLength * camera.zoom);
+  const ndcY = (cy - sy - camera.panY) / (camera.focalLength * camera.zoom);
+  const rayDir = v3norm([ndcX, ndcY, 1]);
+  const inv = quatConjugate(orientation);
+  const rayOrigin = rotateVector(inv, [0, 0, camera.distance]);
+  const rayDirM = rotateVector(inv, rayDir);
+  const r = pt.shellRadius;
+  const A = v3dot(rayDirM, rayDirM);
+  const B = 2 * v3dot(rayOrigin, rayDirM);
+  const C = v3dot(rayOrigin, rayOrigin) - r * r;
+  const disc = B * B - 4 * A * C;
+  let newDir = null;
+  if (disc >= 0){
+    const sq = Math.sqrt(disc);
+    let t = (-B - sq) / (2 * A);
+    if (t < 0) t = (-B + sq) / (2 * A);
+    if (t >= 0){
+      const hit = [rayOrigin[0] + t * rayDirM[0], rayOrigin[1] + t * rayDirM[1], rayOrigin[2] + t * rayDirM[2]];
+      newDir = v3norm(hit);
+    }
+  }
+  if (!newDir){
+    // arcball fallback: closest point on ray to origin, clamped to shell
+    const tC = -v3dot(rayOrigin, rayDirM) / A;
+    const p = [rayOrigin[0] + tC * rayDirM[0], rayOrigin[1] + tC * rayDirM[1], rayOrigin[2] + tC * rayDirM[2]];
+    const pl = v3len(p);
+    newDir = pl > 1e-6 ? v3norm(p) : v3norm(pt.modelPosition);
+  }
+  pt.modelPosition = v3scale(newDir, r);
+  if (selected.id === id) focusTarget = targetOrientationForNode(id);   // B11: recompute focus
+  scheduleFrame();
+}
+/* ---------- B3: drag rotation + momentum ---------- */
+function applyRotateDelta(dx, dy, dt){
+  const sens = DRAG_SENS;
+  const yawQ = quatFromAxisAngle(WORLD_UP, dx * sens);
+  const pitchQ = quatFromAxisAngle([1, 0, 0], dy * sens);
+  orientation = quatNormalize(quatMultiply(pitchQ, quatMultiply(yawQ, orientation)));
+  if (dt != null && dt > 0){
+    angularVelocity = [dy * sens / dt, dx * sens / dt, 0];   // rad/s
+  }
+}
+/* ---------- B13: zoom ---------- */
+function zoomAtScreenPoint(targetZoom, sx, sy){
+  const depth = camera.distance;
+  const scaleNow = camera.focalLength / depth * camera.zoom;
+  const wx = (sx - cx - camera.panX) / scaleNow;
+  const wy = (cy - sy - camera.panY) / scaleNow;
+  camera.targetZoom = clamp(targetZoom, MIN_ZOOM, MAX_ZOOM);
+  const scaleNew = camera.focalLength / depth * camera.targetZoom;
+  camera.targetPanX = sx - cx - wx * scaleNew;
+  camera.targetPanY = sy - cy + wy * scaleNew;
+  const lim = 0.45 * Math.min(W, H);
+  camera.targetPanX = clamp(camera.targetPanX, -lim, lim);
+  camera.targetPanY = clamp(camera.targetPanY, -lim, lim);
+}
+
+wrap.addEventListener('pointerdown', e => {
+  try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* untrusted/edge case */ }
+  showTip(false);
   const r = canvas.getBoundingClientRect();
-  const px = e.clientX-r.left, py = e.clientY-r.top;
-  if(pinch && e.pointerId===pinch.id2 && pinch.active){
-    pinch.x2=e.clientX; pinch.y2=e.clientY;
-    const d = Math.hypot(pinch.x2-pinch.x1, pinch.y2-pinch.y1);
-    if(pinch.lastD) applyPinch(d/pinch.lastD, (pinch.x1+pinch.x2)/2, (pinch.y1+pinch.y2)/2);
-    pinch.lastD=d;
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  gesture.pointers.set(e.pointerId, { x: px, y: py });
+  if (gesture.pointers.size === 2){
+    cancelHold();                                   // second pointer cancels hold -> pinch
+    gesture.mode = 'PINCH_ZOOM';
+    const pts = [...gesture.pointers.values()];
+    gesture.pinchStartDist = Math.max(1, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y));
+    gesture.pinchStartZoom = camera.zoom;
     return;
   }
-  if(drag && e.pointerId===drag.id){
-    const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
-    if(Math.abs(dx)+Math.abs(dy) > 4){
-      drag.moved = true;
-      // moving on a node press: cancel hold → convert to NODE DRAG
-      if(v10HoldTimer){ clearTimeout(v10HoldTimer); v10HoldTimer=null; }
-      if(drag.hit && !v10NodeDrag && !v10HoldFired){
-        const n = nodeMap[drag.hit];
-        const lp = layout[drag.hit];
-        if(n && lp) v10NodeDrag = { id: drag.hit, r: Math.hypot(lp.x, lp.y, lp.z||0) };
-      }
+  if (gesture.pointers.size === 1){
+    gesture.primaryId = e.pointerId;
+    gesture.pressX = gesture.lastX = px;
+    gesture.pressY = gesture.lastY = py;
+    gesture.moved = false;
+    gesture.holdFired = false;
+    gesture.pressTargetId = hitTest(px, py);
+    gesture.mode = gesture.pressTargetId ? 'PRESS_NODE' : 'PRESS_SPACE';
+    if (gesture.pressTargetId){
+      gesture.holdTimer = setTimeout(() => {
+        gesture.holdTimer = null;
+        gesture.holdFired = true;
+        gesture.mode = 'HOLD_FOCUS';
+        v10ShowHold(true);
+        const n = nodeMap[gesture.pressTargetId];
+        if(n && isClickableNode(n)) selectNodeDeep(gesture.pressTargetId);   // hold = deep-dive relations
+      }, HOLD_MS);
     }
-    if(v10NodeDrag){
-      // move THIS node along the ball surface (screen delta -> world delta at its depth)
-      const p = layout[v10NodeDrag.id] || {x:0,y:0,z:0};
-      const w = worldPos(v10NodeDrag.id);
-      const s = FOCAL/(FOCAL+w.z) * cam.zoom;
-      if(s > 0.05){
-        const wx = dx/s, wy = dy/s;
-        p.x += wx; p.y += wy;
-        // re-project onto the sphere surface (keep on the glass)
-        const lr = Math.hypot(p.x,p.y,p.z||0);
-        const targetR = v10NodeDrag.r || lr;
-        if(lr>0.001){ const k = targetR/lr; p.x*=k; p.y*=k; if(typeof p.z==='number') p.z*=k; }
-        v10NodeDrag.x = e.clientX; v10NodeDrag.y = e.clientY;
-      }
-    } else if(!drag.hit && !v10RotTarget){
-      // spin the ball: horizontal drag -> rotY, vertical drag -> rotX tilt
-      // v10.1: while a node is selected the ball is LOCKED on it — empty-space
-      // drags do nothing (focus stays until deselect / another node).
-      rotY += dx * 0.0042;
-      rotX = Math.max(-1.1, Math.min(1.1, rotX + dy * 0.0022));
-      v10SpinVel = dx * 0.0042;
-    } else {
-      // legacy pan fallback (shouldn't trigger; node hit but hold not fired)
-    }
-    if(!v10NodeDrag && drag.hit && drag.moved && !v10HoldFired && v10HoldTimer===null && drag.holdCancelled){
-      // drag after cancelled hold: treat as node drag
-    }
-    drag.x=e.clientX; drag.y=e.clientY;
   }
-  /* v10.0.1 PERF: skip the full 1350-node hover sweep while a drag or pinch
-     is in flight — hover is meaningless mid-gesture and the sweep costs a
-     full rotate3Cached pass per mousemove (review risk #3). */
-  if(!drag && !pinch) hoverId = hitNode(px,py);
+  scheduleFrame();
 });
-wrap.addEventListener('pointerup', e=>{
-  if(pinch && (e.pointerId===pinch.id1 || e.pointerId===pinch.id2)){ endPinch(); return; }
-  if(v10HoldTimer){ clearTimeout(v10HoldTimer); v10HoldTimer=null; }
-  const wasNodeDrag = !!v10NodeDrag;
-  v10NodeDrag = null;
+
+wrap.addEventListener('pointermove', e => {
+  const r = canvas.getBoundingClientRect();
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  // idle hover (no gesture active)
+  if (gesture.pointers.size === 0){
+    const id = hitTest(px, py);
+    if (id !== hoverId){ hoverId = id; scheduleFrame(); }
+    return;
+  }
+  if (!gesture.pointers.has(e.pointerId)) return;
+  gesture.pointers.set(e.pointerId, { x: px, y: py });
+  if (gesture.pointers.size === 2){
+    gesture.mode = 'PINCH_ZOOM';
+    applyPinch();
+    scheduleFrame();
+    return;
+  }
+  if (e.pointerId !== gesture.primaryId) return;
+  const dx = px - gesture.lastX;
+  const dy = py - gesture.lastY;
+  gesture.lastX = px; gesture.lastY = py;
+  if (!gesture.moved){
+    const dist = Math.hypot(px - gesture.pressX, py - gesture.pressY);
+    if (dist > MOVE_THRESHOLD){
+      gesture.moved = true;
+      cancelHold();
+      if (gesture.mode === 'PRESS_NODE'){
+        gesture.mode = 'DRAG_NODE';
+        gesture.dragNodeId = gesture.pressTargetId;
+        gesture.lastMoveTime = performance.now();
+      } else if (gesture.mode === 'PRESS_SPACE'){
+        /* v10.1 lock: empty-space drag while a node is selected does NOT
+           deselect — it is ignored (Vincent's click-focus discipline).
+           Mark moved so the release can't deselect either. */
+        if (selected.id){ gesture.moved = true; return; }
+        gesture.mode = 'ROTATE_GLOBE';
+        gesture.lastMoveTime = performance.now();
+      }
+    }
+  }
+  if (gesture.mode === 'DRAG_NODE'){
+    dragNodeAt(px, py);
+  } else if (gesture.mode === 'ROTATE_GLOBE'){
+    const now = performance.now();
+    const dtm = Math.max(1 / 120, (now - gesture.lastMoveTime) / 1000);
+    gesture.lastMoveTime = now;
+    applyRotateDelta(dx, dy, dtm);
+  }
+  scheduleFrame();
+});
+
+wrap.addEventListener('pointerup', e => {
+  if (!gesture.pointers.has(e.pointerId)) return;
+  gesture.pointers.delete(e.pointerId);
+  if (gesture.pointers.size === 1){
+    // one finger remains after pinch: fresh press on the remaining pointer
+    const rem = [...gesture.pointers.values()][0];
+    gesture.primaryId = [...gesture.pointers.keys()][0];
+    gesture.pressX = gesture.lastX = rem.x;
+    gesture.pressY = gesture.lastY = rem.y;
+    gesture.moved = false;
+    gesture.holdFired = false;
+    gesture.mode = 'PRESS_SPACE';
+    return;
+  }
+  if (gesture.pointers.size === 0){
+    if (gesture.mode === 'PRESS_NODE' && !gesture.moved && !gesture.holdFired){
+      selectNode(gesture.pressTargetId);            // click selects ORIGINAL press target
+    } else if (gesture.mode === 'PRESS_SPACE' && !gesture.moved && !gesture.holdFired){
+      deselectNode();                               // empty-space click deselects
+    }
+    gesture.mode = 'IDLE';
+    gesture.primaryId = null;
+    gesture.pressTargetId = null;
+    gesture.dragNodeId = null;
+    gesture.holdFired = false;
+    gesture.moved = false;
+    cancelHold();
+    v10ShowHold(false);
+  }
+  scheduleFrame();
+});
+
+wrap.addEventListener('pointercancel', e => {
+  cancelHold();
+  gesture.pointers.clear();
+  gesture.mode = 'IDLE';
+  gesture.primaryId = null;
+  gesture.pressTargetId = null;
+  gesture.dragNodeId = null;
+  gesture.holdFired = false;
+  gesture.moved = false;
+  hoverId = null;
   v10ShowHold(false);
-  const wasClick = drag && !drag.moved && e.pointerId===drag.id && activePointers.size<=1 && !pinch && !v10HoldFired;
-  if(wasClick){
-    const r = canvas.getBoundingClientRect();
-    const id = hitNode(e.clientX-r.left, e.clientY-r.top);
-    if(id) selectNode(id); else deselectNode();
-  }
-  drag=null;
+  scheduleFrame();
 });
-wrap.addEventListener('pointerleave', ()=>{ hoverId=null; });
-function hitNode(px,py){
-  let best=null, bd=1e9;
-  for(const n of nodes){
-    if(!isClickableNode(n)) continue;
-    if(!growthVisible(n)) continue;
-    const p = worldPos(n.id); const pr = project(p.x,p.y,p.z);
-    const base = n.type==='agent'?18:13;   /* v10.0.1: match the bumped drawNode sizes — old 13/9 made the visible ball bigger than the hit region */
-    const rad = Math.max(6, base*pr.s);
-    const d = Math.hypot(px-pr.x, py-pr.y);
-    if(d < rad+6 && d < bd){ bd=d; best=n.id; }
-  }
-  return best;
-}
-/* v10.1: solve the rotation that brings node (x,y,z) to the FRONT-CENTER of
-   the ball in SCREEN space (camera pan is separate — this only fixes spin).
-   rotate3 order is Y-then-X, so: ry = atan2(x, z) cancels the Y turn, and
-   after that the Y-rotated coords (x1, z1) give rx = atan2(y, z1) for the X
-   tilt. Returns null when the node sits at the globe axis (no angle). */
-function v10FaceCamera(x, y, z){
-  if(!isFinite(x) || !isFinite(y) || !isFinite(z)) return null;
-  if(Math.abs(x) < 1e-6 && Math.abs(z) < 1e-6) return null;
-  const ry = -Math.atan2(x, z);
-  const c = Math.cos(ry), s = Math.sin(ry);
-  const z1 = -x*s + z*c;
-  return { ry: ry, rx: -Math.atan2(y, z1) };
+
+wrap.addEventListener('pointerleave', () => {
+  if (gesture.pointers.size === 0 && hoverId !== null){ hoverId = null; scheduleFrame(); }
+});
+
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  const factor = Math.exp(-e.deltaY * 0.0012);
+  zoomAtScreenPoint(camera.zoom * factor, e.clientX - r.left, e.clientY - r.top);
+  scheduleFrame();
+}, { passive: false });
+function targetOrientationForNode(id){
+  const pt = layout[id];
+  if(!pt) return quatIdentity();
+  const from = v3norm(pt.modelPosition);
+  return quatNormalize(quatFromUnitVectors(from, FRONT_DIRECTION));
 }
 function selectNode(id){
   playClick();
   const prev = selected.id;
   if(prev && prev===id){ deselectNode(); return; }
   selected.id = id;
-  wrap.classList.add('focused');   // v6.6: attention-gated motion — ambient goes quiet
+  wrap.classList.add('focused');
   const n = nodeMap[id];
   if(n && n.type==='agent') setGhostAvatar(n.agent);
   lastRightSig=null; renderAgents(); renderLegend(); renderRightStable(n);
   if(n){ if(n.type==='agent') setChat(n); else { const o = nodeMap['agent:'+n.owner]; if(o) setChat(o); } }
   computeFocus();
-  const p = worldPos(id);
-  /* v10.1 center of gravity: instead of panning, ROTATE the ball until the
-     picked node faces front-center (shortest direction, longest axis wins —
-     Y-spin first, X-tilt second). Camera then zooms in; pan targets 0. */
-  const face = v10FaceCamera(p.x, p.y, p.z);
-  if(face){
-    // shortest-path wrap so the globe turns the close way round
-    let dyR = face.ry - rotY; dyR = Math.atan2(Math.sin(dyR), Math.cos(dyR));
-    let dxR = face.rx - rotX; dxR = Math.atan2(Math.sin(dxR), Math.cos(dxR));
-    v10RotTarget = { x: rotX + dxR, y: rotY + dyR };
-  } else {
-    v10RotTarget = null;
-  }
-  v10SpinVel = 0;   // v10.1: kill drag momentum — click locks the ball
-  const Z = (isReadableNode(n) ? 1.3 : 1.6) + atlasFitZoom()*0.45;   // v10.1: settle closer to the reference look (1.5/1.8 clipped the halo at s>2.8)
-  cam.tz = Z; cam.ttx = 0; cam.tty = 0;
-
+  focusTarget = targetOrientationForNode(id);
+  angularVelocity = [0,0,0];
+  camera.targetZoom = clamp(fitZoom * 1.18, MIN_ZOOM, MAX_ZOOM);
+  camera.targetPanX = 0; camera.targetPanY = 0;
+  const Z = (isReadableNode(n) ? 1.3 : 1.6) + computeFitZoom()*0.45;
+  camera.targetZoom = clamp(Z, MIN_ZOOM, MAX_ZOOM);
   setFocusTag('focus: <b>'+ (n?n.name:'') +'</b>', (n && n.type==='agent') ? n.rate : null);
-  // v9.1 center of gravity: the pick emits a gravity echo — an expanding ring
-  // that pulls the eye to the new origin. Edge-less nodes get TWO rings + a
-  // "no linked nodes" flash so isolation reads as a fact, not a dead end.
   const deg = (G.edges||[]).filter(e=> e.source===id || e.target===id).length;
-  const pr0 = project(p.x,p.y,p.z);
-  ripples.push({x:pr0.x, y:pr0.y, t:0, max:deg?110:170, rings:deg?1:2});
-  if(!deg) flashes.push({x:pr0.x, y:pr0.y-44, text:'no linked nodes', ttl:2.2});
-
-  if(n){ n.activity = 1; flashes.push({x:project(p.x,p.y,p.z).x, y:project(p.x,p.y,p.z).y-22, text:n.name, ttl:1.6}); }
+  const pr0 = projMap[id] || { x: cx, y: cy };
+  ripples.push({x:pr0.screenX||pr0.x, y:pr0.screenY||pr0.y, t:0, max:deg?110:170, rings:deg?1:2});
+  if(!deg) flashes.push({x:pr0.screenX||pr0.x, y:(pr0.screenY||pr0.y)-44, text:'no linked nodes', ttl:2.2});
+  if(n){ n.activity = 1; flashes.push({x:(pr0.screenX||pr0.x), y:(pr0.screenY||pr0.y)-22, text:n.name, ttl:1.6}); }
 }
 function deselectNode(){
   selected.id = null; focusSet = new Set(); highlightId = null;
-  v10RotTarget = null;   // v10.1: release the freeze — drift resumes
-  if(wrap) wrap.classList.remove('focused');   // v6.6: ambient motion resumes
+  focusTarget = null;
+  if(wrap) wrap.classList.remove('focused');
   setGhostAvatar('reception');
-  const fit = atlasFitZoom();
-  cam.tz = fit; cam.ttx = 0; cam.tty = 0;
-
+  camera.targetZoom = fitZoom; camera.targetPanX = 0; camera.targetPanY = 0;
   setFocusTag('focus: <b>'+orbitFilter+'</b>', null);
   lastRightSig=null; renderAgents(); renderLegend(); renderRightStable(null);
 }
@@ -1836,7 +1970,7 @@ function deselectNode(){
    agent↔node links first, then memories, then the rest in graph order.
    A fresh computeFocus() per selection; hold-deepdive (selectNodeDeep)
    calls it too, but with deep=true which LIFTS the cap (full web). */
-const MAX_FOCUS_EDGES = 30;
+let MAX_FOCUS_EDGES = 30;   // v11.0: let — Graph Console "link" slider scales the cap
 let focusEdges = [];
 function computeFocus(){
   focusSet = new Set();
@@ -1890,61 +2024,6 @@ function selectNodeDeep(id){
   G.edges.forEach(e=>{ if(oneHop.has(e.source) && oneHop.has(e.target)){ focusSet.add(e.source); focusSet.add(e.target); } });
 }
 window.addEventListener('keydown', e=>{ if(e.key==='Escape') deselectNode(); });
-
-// wheel zoom toward cursor
-wrap.addEventListener('wheel', e=>{
-  e.preventDefault();
-  const r = canvas.getBoundingClientRect();
-  const mx = e.clientX - r.left, my = e.clientY - r.top;
-  const factor = e.deltaY < 0 ? 1.13 : 0.87;
-  const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cam.tz * factor));
-  const wx = (mx - cx - cam.tx) / cam.zoom;
-  const wy = (my - cy - cam.ty) / cam.zoom;
-  cam.ttx = cam.tx - wx * (next - cam.zoom);
-  cam.tty = cam.ty - wy * (next - cam.zoom);
-  cam.tz = next;
-},{passive:false});
-
-// touch pinch zoom
-const activePointers = new Map();
-function applyPinch(scale, cx0, cy0){
-  const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, cam.tz * scale));
-  const wx = (cx0 - cx - cam.tx) / cam.zoom;
-  const wy = (cy0 - cy - cam.ty) / cam.zoom;
-  cam.ttx = cam.tx - wx * (next - cam.zoom);
-  cam.tty = cam.ty - wy * (next - cam.zoom);
-  cam.tz = next;
-}
-wrap.addEventListener('pointerdown', e=>{
-  activePointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
-  if(activePointers.size===2){
-    const pts = Array.from(activePointers.values());
-    pinch = {lastD: Math.hypot(pts[1].x-pts[0].x, pts[1].y-pts[0].y)};
-    /* v10.0.1: two fingers down = pinch, NEVER a hold deep-dive (review risk #2) */
-    if(v10HoldTimer){ clearTimeout(v10HoldTimer); v10HoldTimer=null; }
-    v10NodeDrag = null; v10ShowHold(false);
-  }
-});
-wrap.addEventListener('pointermove', e=>{
-  if(!activePointers.has(e.pointerId)) return;
-  activePointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
-  if(activePointers.size===2 && pinch){
-    const pts = Array.from(activePointers.values());
-    const d = Math.hypot(pts[1].x-pts[0].x, pts[1].y-pts[0].y);
-    if(pinch.lastD && d>0) applyPinch(d/pinch.lastD, (pts[0].x+pts[1].x)/2, (pts[0].y+pts[1].y)/2);
-    pinch.lastD = d;
-  }
-});
-function endPinch(){ pinch = null; }
-wrap.addEventListener('pointerup', e=>{
-  activePointers.delete(e.pointerId);
-  if(activePointers.size<2) endPinch();
-});
-wrap.addEventListener('pointercancel', e=>{
-  activePointers.delete(e.pointerId);
-  if(v10HoldTimer){ clearTimeout(v10HoldTimer); v10HoldTimer=null; }   // v10.0.1: palm/pen rejection must cancel a pending hold
-  if(activePointers.size<2) endPinch();
-});
 
 /* ============================================================
    v8.0 MARKDOWN VIEWER — dependency-free, escape-first renderer.
@@ -2052,50 +2131,62 @@ function growthApply(){
 /* ============================================================
    RENDER LOOP
    ============================================================ */
+let rafId = null, prevNow = null;
+let pulsePhase = 0, dashPhase = 0;
+function scheduleFrame(){ if(rafId === null) rafId = requestAnimationFrame(frame); }
 function frame(now){
+  rafId = null;
+  if(prevNow === null) prevNow = now;
+  const rawDt = (now - prevNow) / 1000;
+  prevNow = now;
+  let dt = 0;
+  if(rawDt > 0.25){ dt = 0; } else { dt = clamp(rawDt, 0, 0.05); }
   const t = now/1000;
-  /* v10.1: click = the ball freezes on the picked node. While selected:
-     no auto-spin, no drag momentum — rotation EASES to v10RotTarget so the
-     selection sits front-center (center of gravity). Unselected = clockwise
-     drift + momentum as before.
-     v10.1.1: the ease is TIME-BASED (tau = 550ms), not per-frame — at low
-     frame rates (VPS headless QA, 4-core boxes) a per-frame 0.06 factor
-     took ~5-8s to converge; exp decay converges in ~1.6s at ANY fps. */
-  if(v10RotTarget){
-    /* v10.1.2: the face target is LIVE — recomputed from the node's CURRENT
-       layout position each frame, so console-physics drift can never drag
-       the selection off front-center. Ease is exp decay with tau=650ms
-       (frame-rate independent) + a final snap under 2 mrad. */
-    const p = worldPos(selected.id);
-    const face = v10FaceCamera(p.x, p.y, p.z);
-    if(face){
-      /* v10.1.3: keep the target CONTINUOUS with the current rotY — raw
-         atan2 values live in (-π,π] and flip sign at the seam, which made
-         the ease oscillate forever around ±π. Re-express the face angle as
-         the equivalent angle NEAREST the current rotY (add k·2π). */
-      const TAU = Math.PI*2;
-      const ty = face.ry + TAU*Math.round((rotY - face.ry)/TAU);
-      const tx = face.rx + TAU*Math.round((rotX - face.rx)/TAU);
-      v10RotTarget.x = tx; v10RotTarget.y = ty;
-    }
-    const dtMs = Math.max(4, Math.min(400, now - (frame.last || now)));
-    const k = 1 - Math.exp(-dtMs / 550);
-    rotX += (v10RotTarget.x - rotX)*k;
-    rotY += (v10RotTarget.y - rotY)*k;
-    if(Math.abs(v10RotTarget.x - rotX) < 0.002 && Math.abs(v10RotTarget.y - rotY) < 0.002){ rotX = v10RotTarget.x; rotY = v10RotTarget.y; }
-    v10SpinVel = 0;
+  // orientation
+  if(selected.id && focusTarget){
+    const alpha = 1 - Math.exp(-dt / FOCUS_TAU);
+    orientation = slerpShortest(orientation, focusTarget, alpha);
+    angularVelocity = [0,0,0];
   } else {
-    rotY += AUTO_ROT + v10SpinVel; v10SpinVel *= 0.94;   // v10.0 clockwise auto-spin + drag momentum
+    if(autoSpin){
+      const spin = quatFromAxisAngle(WORLD_UP, AUTO_SPEED * dt);
+      orientation = quatNormalize(quatMultiply(spin, orientation));
+    }
+    if(!reducedMotion){
+      const av = angularVelocity;
+      const len = Math.hypot(av[0], av[1], av[2]);
+      if(len > 1e-5){
+        const q = quatFromAxisAngle(av, len * dt);
+        orientation = quatNormalize(quatMultiply(q, orientation));
+      }
+      const decay = Math.exp(-SPIN_DAMPING * dt);
+      angularVelocity = [av[0]*decay, av[1]*decay, av[2]*decay];
+      if(len < 1e-4) angularVelocity = [0,0,0];
+    }
   }
-  frame.last = now;
-  refreshRotTrig();
-  physicsStep();   // v8.0: bounded console-driven sim (rotation removed — flat atlas)
-  cam.zoom += (cam.tz - cam.zoom)*0.09;
-  cam.tx += (cam.ttx - cam.tx)*0.09;
-  cam.ty += (cam.tty - cam.ty)*0.09;
-
+  // camera easing
+  const ce = 1 - Math.exp(-dt / CAM_TAU);
+  camera.zoom += (camera.targetZoom - camera.zoom) * ce;
+  camera.panX += (camera.targetPanX - camera.panX) * ce;
+  camera.panY += (camera.targetPanY - camera.panY) * ce;
+  // effects
+  if(selected.id && !reducedMotion){ pulsePhase += dt; dashPhase += dt; }
+  // render
+  projectAll();
+  renderScene(t);
+  // decay activity
+  for(const n of nodes){ if(n.activity>0) n.activity = Math.max(0, n.activity - 0.008); }
+  // pause rAF when static
+  const avLen = Math.hypot(angularVelocity[0], angularVelocity[1], angularVelocity[2]);
+  const focusAnimating = selected.id && focusTarget && quatAngleBetween(orientation, focusTarget) > 0.003;
+  const camAnimating = Math.abs(camera.zoom - camera.targetZoom) > 0.001 ||
+    Math.abs(camera.panX - camera.targetPanX) > 0.1 || Math.abs(camera.panY - camera.targetPanY) > 0.1;
+  const effectsActive = selected.id && !reducedMotion;
+  if(autoSpin || avLen > 1e-4 || focusAnimating || camAnimating || effectsActive) scheduleFrame();
+}
+function renderScene(t){
   ctx.clearRect(0,0,W,H);
-  // atmospheric background glow (v9.0 light scene)
+  // atmospheric background glow (keep Atrium gold)
   const bg = ctx.createRadialGradient(cx,cy*0.9,0, cx,cy*0.9, Math.max(W,H)*0.75);
   bg.addColorStop(0,'rgba(176,141,87,.06)'); bg.addColorStop(.45,'rgba(176,141,87,.02)'); bg.addColorStop(1,'rgba(0,0,0,.05)');
   ctx.fillStyle=bg; ctx.fillRect(0,0,W,H);
@@ -2103,37 +2194,18 @@ function frame(now){
   const cor = ctx.createRadialGradient(cx,cy,0,cx,cy,120);
   cor.addColorStop(0,'rgba(217,185,120,.14)'); cor.addColorStop(.5,'rgba(176,141,87,.04)'); cor.addColorStop(1,'rgba(176,141,87,0)');
   ctx.fillStyle=cor; ctx.beginPath(); ctx.arc(cx,cy,120,0,Math.PI*2); ctx.fill();
+  // stars
   if(GC.stars) for(const p of particles){
     const sx = ((p.x*0.5+0.5)*W + Math.sin(t*p.sp+p.tw)*10);
     const sy = ((p.y*0.5+0.5)*H + Math.cos(t*p.sp+p.tw)*10);
     let a = (0.10 + 0.30*Math.abs(Math.sin(t*p.sp+p.tw))*p.z);
-    if(selected.id) { if(p.z<0.5) continue; a *= 0.5; }   // v6.6: fewer/dimmer stars when focused
-    const out = 'rgba(217,185,120,'+a.toFixed(3)+')';
-    ctx.fillStyle=out;
+    if(selected.id) { if(p.z<0.5) continue; a *= 0.5; }
+    ctx.fillStyle='rgba(217,185,120,'+a.toFixed(3)+')';
     ctx.fillRect(sx,sy,p.size*p.z, p.size*p.z);
   }
-
-  // project all nodes once
-  const projMap = {};
-  for(const n of nodes){ const p = worldPos(n.id); projMap[n.id] = project(p.x,p.y,p.z); }
-
-  // memory zone rings (floor grid removed v8.0 per Vincent)
+  // memory zone rings
   drawZoneRings(projMap);
-
-  // center hub (the AI OS core — subtle)
-  const hub = ctx.createRadialGradient(cx,cy,0,cx,cy,46);
-  hub.addColorStop(0,'rgba(217,185,120,.16)'); hub.addColorStop(1,'rgba(217,185,120,0)');
-  ctx.fillStyle=hub; ctx.beginPath(); ctx.arc(cx,cy,46,0,Math.PI*2); ctx.fill();
-  if(GC.hubLabels){
-    /* A.T. hub label removed (Vincent, Aug 25 2026) */
-  }
-
-  // edges — v10.1 glass ball: NOTHING moves until a node is clicked. On
-  // click only the selected node's relations draw, as animated DASHED gold
-  // filaments (quadratic, midpoint bowed ~12% of the chord) flowing INTO
-  // the selection. v10.1: the shooting comet heads are GONE (Vincent: "too
-  // much") and only focusEdges are revealed — capped at MAX_FOCUS_EDGES
-  // (strongest ~30) unless hold-deepdive lifted the cap.
+  // edges — only while selected (Atrium gold dashed filaments, focusEdges)
   const focused = !!selected.id;
   if(focused){
     ctx.setLineDash([7,5]);
@@ -2146,23 +2218,16 @@ function frame(now){
       if(!growthVisible(a) || !growthVisible(b)) continue;
       const pa = projMap[e.source], pb = projMap[e.target];
       if(!pa || !pb) continue;
-      const mx=(pa.x+pb.x)/2 + (pb.y-pa.y)*0.12, my=(pa.y+pb.y)/2 - (pb.x-pa.x)*0.12;
-      ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.quadraticCurveTo(mx,my,pb.x,pb.y); ctx.stroke();
+      const mx=(pa.screenX+pb.screenX)/2 + (pb.screenY-pa.screenY)*0.12, my=(pa.screenY+pb.screenY)/2 - (pb.screenX-pa.screenX)*0.12;
+      ctx.beginPath(); ctx.moveTo(pa.screenX,pa.screenY); ctx.quadraticCurveTo(mx,my,pb.screenX,pb.screenY); ctx.stroke();
     }
     ctx.setLineDash([]); ctx.lineDashOffset = 0;
   }
-
-  /* v10.1 pulse traffic REDESIGNED — Vincent: "the animation is a little too
-     much with the shooting comets; keep it simple with dashed lines." The
-     old behaviour fired straight-line pulses across ALL edges even with
-     nothing selected (the always-on "firework"). Now: at rest the ball is a
-     pure dot cloud + drift; the ONLY edge animation is the dashed filament
-     flow on the selected node's relations, gated by GC.pulse. */
+  // pulse gates dash flow toward the selection (Graph Console toggle)
   if(focused && GC.pulse){
-    ctx.lineDashOffset = -((t*46)%24);   // dash flow toward the selection
+    ctx.lineDashOffset = -((t*46)%24);
   }
-
-  // v9.1 gravity echo — expanding rings from the picked node (center of gravity)
+  // ripples (v9.1 gravity echo)
   for(let i=ripples.length-1;i>=0;i--){
     const rp = ripples[i]; rp.t += 0.022;
     if(rp.t>=1){ ripples.splice(i,1); continue; }
@@ -2176,40 +2241,15 @@ function frame(now){
       ctx.beginPath(); ctx.arc(rp.x,rp.y,rad,0,Math.PI*2); ctx.stroke();
     }
   }
-
-  // nodes — v10.0 glass ball: depth sort by projected scale (far first)
-  const order = nodes.slice().sort((a,b)=>{
-    const sa = projMap[a.id] ? projMap[a.id].s : 0, sb = projMap[b.id] ? projMap[b.id].s : 0;
-    return sa - sb;
-  });
-  for(const n of order){
-    if(!growthVisible(n)) continue;
-    const pr = projMap[n.id];
-    let alpha = 1;
-    if(orbitFilter==='agents') alpha = n.type==='agent' ? 1 : 0.14;
-    else if(orbitFilter==='chats') alpha = (n.type==='agent' || n.type==='conversation') ? 1 : 0.14;
-    else if(orbitFilter==='cron') alpha = n.type==='cron' ? 1 : 0.14;
-    else if(orbitFilter==='files') alpha = n.type==='file' ? 1 : 0.14;
-    else if(orbitFilter==='memory') alpha = n.type==='memory' ? 1 : 0.14;
-    /* v10.1: when a node is selected, its revealed relations (focusSet) are
-       PART of the focus — they render bright regardless of tab filter or
-       depth, so the dashed filaments land on lit nodes, never on ghosts
-       (the 044023 complaint). Only the unlinked remainder stays faded. */
-    const inFocus = focused && (focusEdgeNodes.has(n.id) || selected.id===n.id);
-    if(n.type!=='agent' && pr && !inFocus) alpha *= Math.max(0.25, Math.min(1, (pr.s - 0.55) / 0.45 + 1));
-    if(selected.id===n.id || hoverId===n.id || highlightId===n.id) alpha = 1;
-    else if(focused && !focusSet.has(n.id)) alpha = Math.max(alpha, 0.28);   // v9.1: softer dim — context stays visible
-    else if(focused && inFocus) alpha = 1;   // v10.1: related nodes glow alongside the primary
-    drawNode(n, pr, focused, alpha);
-    // agent name labels (reference style: label under every hub)
-    if(n.type==='agent' && (GC.hubLabels || selected.id===n.id || hoverId===n.id)){
-      ctx.font = '700 10px Montserrat, Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = 'rgba(232,207,160,.92)';
-      ctx.fillText(n.name, pr.x, pr.y + 26);
-    }
+  // nodes — depth-sorted (projected already sorted far-first)
+  for(const pr of projected){
+    if(pr.id === selected.id) continue;
+    drawNode(nodeMap[pr.id], pr, focused);
   }
-
+  if(selected.id){
+    const pr = projMap[selected.id];
+    if(pr) drawSelected(nodeMap[selected.id], pr);
+  }
   // flashes
   for(let i=flashes.length-1;i>=0;i--){
     const f=flashes[i]; f.ttl-=0.016; f.y-=0.25;
@@ -2222,11 +2262,6 @@ function frame(now){
     ctx.fillStyle='rgba(28,25,19,'+(a*0.95).toFixed(3)+')';
     ctx.fillText(f.text, f.x, f.y+2);
   }
-
-  // decay activity
-  for(const n of nodes){ if(n.activity>0) n.activity = Math.max(0, n.activity - 0.008); }
-
-  requestAnimationFrame(frame);
 }
 /* v6.5.2 population-compensated file scale — the file class shrinks
    gently per-node as it grows (500 files ≈ reference look; 5k → ×0.79,
@@ -2241,40 +2276,76 @@ function fileClsScale(){
   return _fcsV;
 }
 function drawNode(n, pr, focused, alpha){
-  const s = pr.s;
-  const readable = isReadableNode(n);
+  if(!n || !pr) return;
+  const rad = pr.drawRadius;
   const interactive = (selected.id===n.id || hoverId===n.id || highlightId===n.id);
-  /* lit = anything currently happening to this node — the ONLY way
-     bulk-class nodes earn a halo (activity pulse, hot file, hover,
-     selection, search highlight, or an active Files filter). */
   const lit = n.activity>0 || hotFiles.has(n.id) || interactive ||
               (orbitFilter==='files' && n.type==='file');
-  const bright = readable || n.type==='agent' || n.type==='cron' || n.type==='file' || n.type==='profile' || n.type==='conversation' || n.type==='skill';
-  let rad = (n.type==='agent'?18:(readable||n.type==='file'?13:6))*s;   // v10.0: ~1.4x size bump
-  if(n.type==='memory') rad = (n.index?15:13)*s;
-  if(n.type==='cron') rad = 13*s;
-  let restGlow = true;
-  if(n.type==='file'){ rad = (readable?10:6.5)*s*fileClsScale(); restGlow = false; }
-  if(!bright) rad *= 0.65;
+  const bright = isReadableNode(n) || n.type==='agent' || n.type==='cron' || n.type==='file' || n.type==='profile' || n.type==='conversation' || n.type==='skill';
+  // filter alpha (Atrium tab pills) × hemisphere fade
+  let a = alpha;
+  if(orbitFilter==='agents') a = n.type==='agent' ? 1 : 0.14;
+  else if(orbitFilter==='chats') a = (n.type==='agent' || n.type==='conversation') ? 1 : 0.14;
+  else if(orbitFilter==='cron') a = n.type==='cron' ? 1 : 0.14;
+  else if(orbitFilter==='files') a = n.type==='file' ? 1 : 0.14;
+  else if(orbitFilter==='memory') a = n.type==='memory' ? 1 : 0.14;
+  const inFocus = focused && (focusEdgeNodes.has(n.id) || selected.id===n.id);
+  if(n.type!=='agent' && !inFocus) a *= Math.max(0.25, Math.min(1, (pr.scale - 0.55) / 0.45 + 1));
+  if(selected.id===n.id || hoverId===n.id || highlightId===n.id) a = 1;
+  else if(focused && !focusSet.has(n.id)) a = Math.max(a, 0.28);
+  else if(focused && inFocus) a = 1;
+  a *= pr.hemiAlpha;
+  // glow — reserved for meaning
+  const restGlow = n.type==='agent' || n.type==='cron' || n.type==='memory';
   const gs = rad*(2.6 + n.activity*1.5);
   if(restGlow || lit){
-    ctx.globalAlpha = alpha * (bright ? (0.65 + n.activity*0.35) : 0.22);
-    ctx.drawImage(glowSprite, pr.x-gs, pr.y-gs, gs*2, gs*2);
+    ctx.globalAlpha = a * (bright ? (0.65 + n.activity*0.35) : 0.22);
+    ctx.drawImage(glowSprite, pr.screenX-gs, pr.screenY-gs, gs*2, gs*2);
   }
-  ctx.globalAlpha = alpha * (lit ? 1 : (bright ? 0.82 : 0.35));
+  ctx.globalAlpha = a * (lit ? 1 : (bright ? 0.82 : 0.35));
   const color = bright ? n.color : '#8A8272';
-  ctx.drawImage(nodeSprite(color), pr.x-rad, pr.y-rad, rad*2, rad*2);
-  // halo ring only where it carries meaning — never on resting bulk
+  ctx.drawImage(nodeSprite(color), pr.screenX-rad, pr.screenY-rad, rad*2, rad*2);
   if(interactive || n.type==='agent' || n.type==='cron' || n.type==='memory'){
-    ctx.globalAlpha = alpha * ((selected.id===n.id||highlightId===n.id)?0.9:0.35);
+    ctx.globalAlpha = a * ((selected.id===n.id||highlightId===n.id)?0.9:0.35);
     ctx.strokeStyle = (selected.id===n.id||highlightId===n.id) ? '#E8CFA0' : color;
     ctx.lineWidth = (selected.id===n.id||highlightId===n.id) ? 2 : 1;
-    ctx.beginPath(); ctx.arc(pr.x,pr.y,rad+4,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(pr.screenX,pr.screenY,rad+4,0,Math.PI*2); ctx.stroke();
   }
   if(n.type==='memory' && n.index){
-    ctx.strokeStyle=zoneColor(n.zone); ctx.globalAlpha=alpha*0.6; ctx.lineWidth=1.2;
-    ctx.beginPath(); ctx.arc(pr.x,pr.y,rad+3,0,Math.PI*2); ctx.stroke();
+    ctx.strokeStyle=zoneColor(n.zone); ctx.globalAlpha=a*0.6; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.arc(pr.screenX,pr.screenY,rad+3,0,Math.PI*2); ctx.stroke();
   }
+  // agent labels (Atrium style: cream, under hub)
+  if(n.type==='agent' && (GC.hubLabels || selected.id===n.id || hoverId===n.id) && (pr.frontness > 0 || selected.id===n.id)){
+    ctx.font = '700 10px Montserrat, Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(232,207,160,.92)';
+    ctx.fillText(n.name, pr.screenX, pr.screenY + rad + 14);
+  }
+  ctx.globalAlpha = 1;
+}
+function drawSelected(n, pr){
+  if(!n || !pr) return;
+  const rad = pr.drawRadius;
+  ctx.globalAlpha = 0.85;
+  const gs = rad * 3.2;
+  ctx.drawImage(glowSprite, pr.screenX-gs, pr.screenY-gs, gs*2, gs*2);
+  if(!reducedMotion){
+    for(let i=0;i<2;i++){
+      const ph = (pulsePhase*0.9 + i*0.5) % 1;
+      const rr = rad + ph*34;
+      ctx.globalAlpha = 0.5*(1-ph);
+      ctx.strokeStyle = '#D9B978';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(pr.screenX,pr.screenY,rr,0,Math.PI*2); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+  ctx.drawImage(nodeSprite('#D9B978'), pr.screenX-rad, pr.screenY-rad, rad*2, rad*2);
+  ctx.font = '700 10px Montserrat, Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(232,207,160,.92)';
+  ctx.fillText(n.name, pr.screenX, pr.screenY + rad + 14);
   ctx.globalAlpha = 1;
 }
 function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
@@ -2588,7 +2659,7 @@ async function sendChat(){
   const n = agentNodes.find(x=>x.agent===chatAgent);
   (chatHist[chatAgent]=chatHist[chatAgent]||[]).push({role:'user', text});
   renderChat(n);
-  if(n){ n.activity=1; const p=worldPos(n.id); const pr=project(p.x,p.y,p.z); flashes.push({x:pr.x, y:pr.y-22, text:n.name+' · replying…', ttl:1.6}); }
+  if(n){ n.activity=1; const pr=projMap[n.id]; if(pr) flashes.push({x:pr.screenX, y:pr.screenY-22, text:n.name+' · replying…', ttl:1.6}); }
   sending = true; $('#chatSend').disabled = true;
   chatThinking(true, n.name + ' is thinking…');
   const hist = chatHist[chatAgent].slice(-8).map(m=>({role:m.role, content:m.text}));
@@ -2815,7 +2886,7 @@ function drawZoneRings(projMap){
     const echo = (z===echoZone);
     ctx.strokeStyle = col; ctx.globalAlpha = echo ? 0.38 : 0.10; ctx.lineWidth = echo ? 3 : 2.2; ctx.setLineDash([6,6]);
     ctx.beginPath();
-    arr.forEach((n,k)=>{ const p = projMap[n.id]; if(!p) return; if(k===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); });
+    arr.forEach((n,k)=>{ const p = projMap[n.id]; if(!p) return; if(k===0) ctx.moveTo(p.screenX,p.screenY); else ctx.lineTo(p.screenX,p.screenY); });
     ctx.closePath(); ctx.stroke();
   });
   ctx.globalAlpha = 1;
@@ -3155,8 +3226,8 @@ function toggleDrawer(){
 fetchState();
 setInterval(fetchState, 8000);
 /* v8.0: re-fit once layout/fonts fully settle (first paint can measure small) */
-setTimeout(()=>{ if(!selected.id){ resize(); const f = atlasFitZoom(); cam.tz = f; } }, 900);
-requestAnimationFrame(frame);
+setTimeout(()=>{ if(!selected.id){ resize(); camera.targetZoom = fitZoom; } }, 900);
+scheduleFrame();
 
 /* ============================================================
    v7.0 GRAPH CONSOLE — physics sliders, display toggles, live
@@ -3184,15 +3255,16 @@ const GC = { hubLabels:true, pulse:true, stars:true, countsDone:false };
   repel.addEventListener('input', ()=>{
     PHYS.repel = repel.value/100;
     rVal.textContent = PHYS.repel.toFixed(1)+'×';
-    computeLayout(); physicsHomeSnapshot();   // v9.3: structural reshape, instant
-    physicsWake();
+    computeLayout();   // v11.0: repel = sphere radius scale (no 2D physics)
+    scheduleFrame();   // v11.0: repaint after layout change
     gcSave();
   });
   link.addEventListener('input', ()=>{
     PHYS.link = link.value/100;
     lVal.textContent = PHYS.link.toFixed(1)+'×';
-    computeLayout(); physicsHomeSnapshot();   // v9.3: structural reshape, instant
-    physicsWake();
+    MAX_FOCUS_EDGES = Math.round(30 * PHYS.link);   // v11.0: link = focus edge cap scale
+    if(selected.id) computeFocus();
+    scheduleFrame();   // v11.0: repaint after focus change
     gcSave();
   });
   function gcSave(){
