@@ -1503,6 +1503,11 @@ function computeFitZoom(){
    ============================================================ */
 const canvas = $('#scene'), ctx = canvas.getContext('2d');
 let W=0, H=0, DPR=1, cx=0, cy=0;
+/* v11.0: rAF state hoisted — resize() at boot calls scheduleFrame() and
+   `let rafId` must exist before that call (TDZ ReferenceError otherwise). */
+let rafId = null, prevNow = null;
+let pulsePhase = 0, dashPhase = 0;
+function scheduleFrame(){ if(rafId === null) rafId = requestAnimationFrame(frame); }
 function resize(){
   const r = canvas.parentElement.getBoundingClientRect();
   DPR = Math.min(window.devicePixelRatio||1, 2);
@@ -2131,9 +2136,6 @@ function growthApply(){
 /* ============================================================
    RENDER LOOP
    ============================================================ */
-let rafId = null, prevNow = null;
-let pulsePhase = 0, dashPhase = 0;
-function scheduleFrame(){ if(rafId === null) rafId = requestAnimationFrame(frame); }
 function frame(now){
   rafId = null;
   if(prevNow === null) prevNow = now;
