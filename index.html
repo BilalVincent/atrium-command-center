@@ -2205,14 +2205,14 @@ function renderScene(t){
     ctx.fillStyle='rgba(217,185,120,'+a.toFixed(3)+')';
     ctx.fillRect(sx,sy,p.size*p.z, p.size*p.z);
   }
-  // memory zone rings
-  drawZoneRings(projMap);
+  // memory zone rings (v11.1: corrected-engine mechanics — selected-only, curved, animated, hemisphere-faded)
+  drawZoneRings(projMap, t);
   // edges — only while selected (Atrium gold dashed filaments, focusEdges)
   const focused = !!selected.id;
   if(focused){
     ctx.setLineDash([7,5]);
-    ctx.lineDashOffset = -((t*46)%24);
-    ctx.strokeStyle = 'rgba(217,185,120,0.70)';
+    ctx.lineDashOffset = reducedMotion ? 0 : -((t*46)%24);
+    ctx.strokeStyle = 'rgba(217,185,120,1)';
     ctx.lineWidth = 1.6;
     for(const e of focusEdges){
       const a = nodeMap[e.source], b = nodeMap[e.target];
@@ -2221,8 +2221,13 @@ function renderScene(t){
       const pa = projMap[e.source], pb = projMap[e.target];
       if(!pa || !pb) continue;
       const mx=(pa.screenX+pb.screenX)/2 + (pb.screenY-pa.screenY)*0.12, my=(pa.screenY+pb.screenY)/2 - (pb.screenX-pa.screenX)*0.12;
+      // v11.1: hemisphere fade — same mechanic as the corrected engine's drawEdges (B9)
+      const f = Math.min(pa.frontness, pb.frontness);
+      const fade = 0.25 + 0.75 * smoothstep(-0.3, 0.5, f);
+      ctx.globalAlpha = 0.70 * fade;
       ctx.beginPath(); ctx.moveTo(pa.screenX,pa.screenY); ctx.quadraticCurveTo(mx,my,pb.screenX,pb.screenY); ctx.stroke();
     }
+    ctx.globalAlpha = 1;
     ctx.setLineDash([]); ctx.lineDashOffset = 0;
   }
   // pulse gates dash flow toward the selection (Graph Console toggle)
@@ -2873,7 +2878,11 @@ function zoneColor(z){ return ZONE_COLORS[z] || '#C6B3BB'; }
 function zoneLabel(z){ return ZONE_LABELS[z] || String(z||'').toUpperCase(); }
 
 /* v8.0: drawFloor() removed — grid floor gone per Vincent */
-function drawZoneRings(projMap){
+/* v11.1: zone rings follow the corrected-engine edge mechanics —
+   hidden until selection, curved quadratic filaments, animated dash
+   flow, hemisphere fade (same B9 rules as focusEdges). */
+function drawZoneRings(projMap, t){
+  if(!selected.id) return;                       // no links until clicked
   const byZone = {};
   nodes.forEach(n=>{ if(n.type==='memory' && n.zone!=='profile'){ (byZone[n.zone]=byZone[n.zone]||[]).push(n); } });
   /* v6.6 selection → zone echo: the selected node's zone ring
@@ -2886,12 +2895,39 @@ function drawZoneRings(projMap){
     const arr = byZone[z]; if(arr.length<3) return;
     const col = zoneColor(z);
     const echo = (z===echoZone);
-    ctx.strokeStyle = col; ctx.globalAlpha = echo ? 0.38 : 0.10; ctx.lineWidth = echo ? 3 : 2.2; ctx.setLineDash([6,6]);
+    ctx.strokeStyle = col; ctx.lineWidth = echo ? 3 : 2.2;
+    ctx.setLineDash([6,6]);
+    ctx.lineDashOffset = reducedMotion ? 0 : -((t*46)%24);
+    /* v11.1: closed curved filament — quadratic bow between consecutive
+       zone members, same bow mechanic as the corrected engine's edges */
     ctx.beginPath();
-    arr.forEach((n,k)=>{ const p = projMap[n.id]; if(!p) return; if(k===0) ctx.moveTo(p.screenX,p.screenY); else ctx.lineTo(p.screenX,p.screenY); });
-    ctx.closePath(); ctx.stroke();
+    let started = false, prev = null;
+    arr.forEach((n,k)=>{
+      const p = projMap[n.id]; if(!p) return;
+      if(!started){ ctx.moveTo(p.screenX,p.screenY); started = true; prev = p; return; }
+      const mx=(prev.screenX+p.screenX)/2 + (p.screenY-prev.screenY)*0.12;
+      const my=(prev.screenY+p.screenY)/2 - (p.screenX-prev.screenX)*0.12;
+      ctx.quadraticCurveTo(mx,my,p.screenX,p.screenY);
+      prev = p;
+    });
+    if(started && prev){
+      const first = projMap[arr[0].id];
+      if(first){
+        const mx=(prev.screenX+first.screenX)/2 + (first.screenY-prev.screenY)*0.12;
+        const my=(prev.screenY+first.screenY)/2 - (first.screenX-prev.screenX)*0.12;
+        ctx.quadraticCurveTo(mx,my,first.screenX,first.screenY);
+      }
+    }
+    ctx.closePath();
+    /* v11.1: hemisphere fade — same mechanic as the corrected engine's drawEdges (B9) */
+    let fmin = 1;
+    arr.forEach(n=>{ const p = projMap[n.id]; if(p && p.frontness < fmin) fmin = p.frontness; });
+    const fade = 0.25 + 0.75 * smoothstep(-0.3, 0.5, fmin);
+    ctx.globalAlpha = (echo ? 0.38 : 0.10) * fade;
+    ctx.stroke();
   });
   ctx.globalAlpha = 1;
+  ctx.setLineDash([]); ctx.lineDashOffset = 0;
 }
 
 /* ---- left-rail renders ---- */
